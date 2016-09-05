@@ -83,6 +83,7 @@ def highlights(files, options):
     * options.with_path     Print the file path with each line
     * options.with_page     Print the page number with each line
     * options.buffered      Buffer output
+    * options.list_keys     Print key only
 
     """
     for path in files:
@@ -123,10 +124,19 @@ def highlights(files, options):
 
                         note = annot.get_contents().strip()
 
+                        if options.list_keys : # Print keys
+                            m = RX_KEY.match(note)
+                            key = m is not None and m.groups()[0].strip().lower() or 'none'
+                            sys.stdout.write(key + '\n')
+                            if not options.buffered:
+                                sys.stdout.flush()
+
+                            continue # Don't print the note
+
                         if len(options.filter_keys): # Filter
                             m = RX_KEY.match(note)
                             if m is not None:
-                                key = m.groups()[0].strip().lower() or 'none'
+                                key = m.groups()[0].strip().lower()
                                 if key not in options.filter_keys: # Abort
                                     continue
                             elif 'none' not in options.filter_keys: # Abort
@@ -182,6 +192,8 @@ def main():
       -r, --recursive       Read all files under each directory, recursively.
       -a VALID_TYPES, --annotation-type VALID_TYPES
                             Extracted annotation types
+      --list-keys           Print a list of all keys in the document. Does not
+                            print notes.
       --line-buffered       Use line buffering on output. This can cause a
                             performance penalty.
 
@@ -201,6 +213,7 @@ def main():
     parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
     parser.add_argument('-r', '--recursive', action='store_true', dest='recursive', default=False, help='Read all files under each directory, recursively.')
     parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=[], help='Extracted annotation types')
+    parser.add_argument('--list-keys', action='store_true', dest='list_keys', default=False, help='Print a list of all keys in the document. Does not print notes.')
     parser.add_argument('--line-buffered', action='store_false', dest='buffered', default=True, help='Use line buffering on output. This can cause a performance penalty.')
 
     parser.add_argument('paths', nargs=argparse.REMAINDER)
