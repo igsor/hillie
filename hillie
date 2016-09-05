@@ -1,0 +1,227 @@
+#!/usr/bin/env python
+"""Display notes in PDF files.
+
+Print notes in PDF files.
+
+Written by Matthias Baumgartner, 2016
+Based on an example by Mahmood S. Zargar
+
+Copyright (c) 2016, Matthias Baumgartner
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in
+   the documentation and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+"""
+# EXPORTS
+__all__ = ('highlights', 'main')
+
+# IMPORTS
+import poppler
+import urllib
+import os.path
+import sys
+import re
+import glib
+
+## CONFIGURATION ##
+
+RX_KEY = re.compile('<(.*?)>\s*(.*)\s*</\\1>', re.I)
+VALID_TYPES = ['Highlight', 'Underline', 'Squiggly', 'Strike-out']
+VERSION = 1.0
+
+## CODE ##
+
+def uniquepath(path):
+    """Return a normalized path."""
+    if path is None or path == '':
+        return path
+
+    return os.path.realpath(
+           os.path.abspath(
+           os.path.normpath(
+           os.path.expandvars(
+           os.path.expanduser(
+               path
+           )))))
+
+def highlights(files, options):
+    """Print notes from highlighted text.
+
+    All is printed to standard input or standard error.
+
+    Options:
+    * options.recursive     Handle directories
+    * options.use_title     Print filename/document title instead of full path
+    * options.valid_types   PDF annotation types to process
+    * options.filter_keys   Only print stated keys.
+    * options.remove_key    Don't print key tags
+    * options.with_path     Print the file path with each line
+    * options.with_page     Print the page number with each line
+    * options.buffered      Buffer output
+
+    """
+    for path in files:
+        if os.path.isdir(path):
+            if options.recursive:
+                highlights([os.path.join(path, p) for p in os.listdir(path)], options)
+            continue # Omit directories
+
+        url = 'file://{}'.format(urllib.pathname2url(uniquepath(path)))
+        try:
+            document = poppler.document_new_from_file(url, None)
+        except glib.GError as err:
+            msg = '{}: {}: {}\n'.format(sys.argv[0], path, err.message) 
+            sys.stderr.write(msg)
+            if not options.buffered:
+                sys.stderr.flush()
+
+            continue # Abort on failure
+
+        if options.use_title:
+            title = document.get_property('title')
+            if title is not None and title != '': # Pick embedded title
+                path = title
+            else: # Pick filename w/o extension instead
+                path = os.path.basename(path)
+                path, ext = os.path.splitext(path)
+
+        for i in range(document.get_n_pages()):
+            page = document.get_page(i)
+            annot_mappings = page.get_annot_mapping()
+            num_annots = len(annot_mappings)
+            if num_annots > 0:
+                for annot_mapping in annot_mappings:
+                    annot = annot_mapping.annot
+                    annot_type = annot.get_annot_type().value_nick
+                    annot_type = annot_type[0].upper() + annot_type[1:]
+                    if annot_type.lower() in options.valid_types:
+
+                        note = annot.get_contents().strip()
+
+                        if len(options.filter_keys): # Filter
+                            m = RX_KEY.match(note)
+                            if m is not None:
+                                key = m.groups()[0].strip().lower() or 'none'
+                                if key not in options.filter_keys: # Abort
+                                    continue
+                            elif 'none' not in options.filter_keys: # Abort
+                                continue
+
+                        if options.remove_key: # Remove key
+                            m = RX_KEY.match(note)
+                            if m is not None:
+                                note = m.groups()[1]
+
+                        if note is not None and note != '':
+                            line = '' # Init empty
+
+                            if options.with_path: # Path
+                                line += '{}:'.format(path)
+
+                            if options.with_page: # Page No
+                                page_no = str(page.get_index() + 1)
+                                line += '{}:'.format(page_no)
+
+                            line += ' ' + note # Note
+
+                            # Write the note
+                            sys.stdout.write(line.strip() + '\n')
+                            if not options.buffered:
+                                sys.stdout.flush()
+
+def main():
+    """Print highlighted areas from PDF documents.
+
+    usage: hillie [--help] [--version] [-h] [-H] [-n] [-s] [-t] [-k FILTER_KEYS]
+                  [-r] [-a VALID_TYPES] [--line-buffered]
+                  ...
+
+    Print highlighted areas from PDF documents.
+
+    positional arguments:
+      paths
+
+    optional arguments:
+      --help                show this help message and exit
+      --version             show program's version number and exit
+      -h, --no-filename     Suppress the prefixing of file names on output. This
+                            is the default when there is only one file.
+      -H, --with-filename   Print the file name for each highlight. This is the
+                            default when there is more than one file.
+      -n, --page-number     Prefix each line of output with the 1-based page
+                            number within its input file.
+      -s, --remove-key      Do not print xml-style keys.
+      -t, --use-title       Print document title instead of path.
+      -k FILTER_KEYS, --key FILTER_KEYS
+                            Show only listed keys. Use "None" for empty/no key
+      -r, --recursive       Read all files under each directory, recursively.
+      -a VALID_TYPES, --annotation-type VALID_TYPES
+                            Extracted annotation types
+      --line-buffered       Use line buffering on output. This can cause a
+                            performance penalty.
+
+    """
+    import argparse
+
+    usage = """Print highlighted areas from PDF documents."""
+    parser = argparse.ArgumentParser(description=usage, add_help=False)
+
+    parser.add_argument('--help', action='help', help='show this help message and exit')
+    parser.add_argument('--version', action='version', version='%(prog)s {}'.format(VERSION))
+    parser.add_argument('-h', '--no-filename', action='store_false', dest='with_path', default=None, help='Suppress the prefixing of file names on output. This is the default when there is only one file.')
+    parser.add_argument('-H', '--with-filename', action='store_true', dest='with_path', default=None, help='Print the file name for each highlight. This is the default when there is more than one file.')
+    parser.add_argument('-n', '--page-number', action='store_true', dest='with_page', default=False, help='Prefix each line of output with the 1-based page number within its input file.')
+    parser.add_argument('-s', '--remove-key', action='store_true', dest='remove_key', default=False, help='Do not print xml-style keys.')
+    parser.add_argument('-t', '--use-title', action='store_true', dest='use_title', default=False, help='Print document title instead of path.')
+    parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
+    parser.add_argument('-r', '--recursive', action='store_true', dest='recursive', default=False, help='Read all files under each directory, recursively.')
+    parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=[], help='Extracted annotation types')
+    parser.add_argument('--line-buffered', action='store_false', dest='buffered', default=True, help='Use line buffering on output. This can cause a performance penalty.')
+
+    parser.add_argument('paths', nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    if args.with_path is None: # with_path default depends on number of files given
+        args.with_path = len(args.paths) > 1
+
+    if len(args.valid_types) == 0: # Default annotation types if none given.
+        args.valid_types = VALID_TYPES
+
+    # Allow comma-seperated keys/types and ensure lower case
+    args.filter_keys = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.filter_keys], [])
+    args.valid_types = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.valid_types], [])
+   
+    # Run highlighter
+    highlights(args.paths, args)
+
+
+## MAIN ##
+
+if __name__ == "__main__":
+    main()
+
+## EOF ##
