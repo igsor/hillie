@@ -1,0 +1,242 @@
+#!/usr/bin/env python
+"""Edit annotations in PDF files.
+
+Go through and review or edit notes in PDF files.
+
+Copyright (c) 2016, Matthias Baumgartner
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in
+   the documentation and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+"""
+# EXPORTS
+__all__ = ('highlights', 'main')
+
+# IMPORTS
+import glib
+import os.path
+import poppler
+import re
+import readline
+import sys
+import urllib
+import warnings
+
+
+## CONFIGURATION ##
+
+RX_KEY = re.compile('<(.*?)>\s*(.*)\s*</\\1>', re.I)
+VALID_TYPES = ['Highlight', 'Underline', 'Squiggly', 'Strike-out']
+VERSION = 1.0
+
+## CODE ##
+
+def uniquepath(path):
+    """Return a normalized path."""
+    if path is None or path == '':
+        return path
+
+    return os.path.realpath(
+           os.path.abspath(
+           os.path.normpath(
+           os.path.expandvars(
+           os.path.expanduser(
+               path
+           )))))
+
+def anedit(ifile, ofile, options):
+    """Print notes from highlighted text.
+
+    All is printed to standard input or standard error.
+
+    Options:
+    * options.recursive     Handle directories
+    * options.use_title     Print filename/document title instead of full path
+    * options.valid_types   PDF annotation types to process
+    * options.filter_keys   Only print stated keys.
+    * options.remove_key    Don't print key tags
+    * options.with_path     Print the file path with each line
+    * options.with_page     Print the page number with each line
+    * options.buffered      Buffer output
+    * options.list_keys     Print key only
+
+    """
+    if not os.path.isfile(ifile) or (os.path.exists(ofile) and not os.path.isfile(ofile)):
+        raise Exception('only works on files')
+
+    url = 'file://{}'.format(urllib.pathname2url(uniquepath(ifile)))
+    document = poppler.document_new_from_file(url, None) # Raises glib.GError on error
+
+    notes = []
+    for i in range(document.get_n_pages()):
+        page = document.get_page(i)
+        annot_mappings = page.get_annot_mapping()
+        num_annots = len(annot_mappings)
+        if num_annots > 0:
+            for annot_mapping in annot_mappings:
+                annot = annot_mapping.annot
+                annot_type = annot.get_annot_type().value_nick
+                annot_type = annot_type[0].upper() + annot_type[1:]
+                if annot_type.lower() in options.valid_types:
+
+                    note, key = annot.get_contents().strip(), None
+
+                    if len(options.filter_keys): # Key filter
+                        m = RX_KEY.match(note)
+                        if m is not None:
+                            key = m.groups()[0].strip().lower()
+                            if key not in options.filter_keys: # Abort
+                                continue
+                        elif 'none' not in options.filter_keys: # Abort
+                            continue
+
+                    if options.remove_key: # Remove key
+                        m = RX_KEY.match(note)
+                        if m is not None:
+                            # Set key from regex. Values from filter_keys are overwritten
+                            # If key is not set, there's no match in here or filter_keys and key remains None
+                            key, note = m.groups()
+
+                    if note is not None and note != '':
+                        sugg = note # FIXME
+                        header = ''
+                        notes.append((header, annot, note, key, sugg))
+
+    # Walk through notes
+    while len(notes) > 0:
+        header, annot, note, key, sugg = notes.pop(0)
+
+        print header
+        print "Original: ", note
+        print "Suggested:", sugg
+        
+        if note == sugg:
+            valid_answers = 'eisq'
+        else:
+            valid_answers = 'yneisq'
+
+        prompt = '[{}]: '.format('/'.join(valid_answers))
+        ans = 'NEIN'
+        while ans not in valid_answers:
+            ans = raw_input(prompt) \
+                .strip() \
+                .lower() \
+                .replace('yes', 'y') \
+                .replace('no', 'n') \
+                .replace('quit', 'q') \
+                .replace('ignore', 'i') \
+                .replace('ign', 'i') \
+                .replace('edit', 'e') \
+                .replace('skip', 's')
+
+        if ans == 'y': # Use suggestion
+            if key is None:
+                annot.set_contents(sugg)
+            else:
+                annot.set_contents('<{}>{}</{}>'.format(key, sugg, key))
+        elif ans == 'n': # Use original
+            pass
+        elif ans == 'e': # Edit manually
+            def hook():
+                readline.insert_text(note)
+                readline.redisplay()
+
+            readline.set_pre_input_hook(hook)
+            sugg = raw_input().strip()
+            readline.set_pre_input_hook(None)
+            notes.insert(0, (header, annot, note, key, sugg))
+        elif ans == 'i': # Ignore note for now
+            notes.append((header, annot, note, key, sugg))
+        elif ans == 'q': # Quit immediately, don't save
+            return
+        elif ans == 's': # Skip the rest
+            break
+
+    # save changes
+    print "Saving changes" # FIXME: Ask first
+
+    url2 = 'file://{}'.format(urllib.pathname2url(uniquepath(ofile)))
+    if url == url2: # FIXME
+        warnings.warn("Due to lack of documentation I don't know how to save documents in-place. The suffix '-mod' is added to the path")
+        url2 += '-mod'
+
+    document.save(url2)
+
+def main():
+    """Print highlighted areas from PDF documents.
+
+    usage: hillie [--help] [--version] [-h] [-H] [-n] [-s] [-t] [-k FILTER_KEYS]
+                  [-r] [-a VALID_TYPES] [--line-buffered]
+                  ...
+
+    Print highlighted areas from PDF documents.
+
+    positional arguments:
+      paths
+
+    optional arguments:
+      --help                show this help message and exit
+      --version             show program's version number and exit
+      -s, --remove-key      Do not print xml-style keys.
+      -k FILTER_KEYS, --key FILTER_KEYS
+                            Show only listed keys. Use "None" for empty/no key
+      -a VALID_TYPES, --annotation-type VALID_TYPES
+                            Extracted annotation types
+
+    """
+    import argparse
+
+    usage = """Print highlighted areas from PDF documents."""
+    parser = argparse.ArgumentParser(description=usage, add_help=False)
+
+    parser.add_argument('--help', action='help', help='show this help message and exit')
+    parser.add_argument('--version', action='version', version='%(prog)s {}'.format(VERSION))
+    parser.add_argument('-s', '--remove-key', action='store_true', dest='remove_key', default=False, help='Do not print xml-style keys.')
+    parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
+    parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=[], help='Extracted annotation types')
+
+    parser.add_argument('paths', nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    if len(args.valid_types) == 0: # Default annotation types if none given.
+        args.valid_types = VALID_TYPES
+
+    # Allow comma-seperated keys/types and ensure lower case
+    args.filter_keys = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.filter_keys], [])
+    args.valid_types = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.valid_types], [])
+   
+    # Run highlighter
+    ifile, ofile = args.paths
+    anedit(ifile, ofile, args)
+
+
+## MAIN ##
+
+if __name__ == "__main__":
+    main()
+
+## EOF ##
