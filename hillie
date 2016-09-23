@@ -45,29 +45,10 @@ import poppler
 import urllib
 import os.path
 import sys
-import re
 import glib
-
-## CONFIGURATION ##
-
-RX_KEY = re.compile('<(.*?)>\s*(.*)\s*</\\1>', re.I)
-VALID_TYPES = ['Highlight', 'Underline', 'Squiggly', 'Strike-out']
-VERSION = 1.0
+from basics import uniquepath, RX_KEY, VALID_TYPES, VERSION
 
 ## CODE ##
-
-def uniquepath(path):
-    """Return a normalized path."""
-    if path is None or path == '':
-        return path
-
-    return os.path.realpath(
-           os.path.abspath(
-           os.path.normpath(
-           os.path.expandvars(
-           os.path.expanduser(
-               path
-           )))))
 
 def highlights(files, options):
     """Print notes from highlighted text.
