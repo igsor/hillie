@@ -41,33 +41,14 @@ __all__ = ('highlights', 'main')
 import glib
 import os.path
 import poppler
-import re
 import readline
 import sys
 import urllib
 import warnings
+from basics import uniquepath, RX_KEY, VALID_TYPES, VERSION
 
-
-## CONFIGURATION ##
-
-RX_KEY = re.compile('<(.*?)>\s*(.*)\s*</\\1>', re.I)
-VALID_TYPES = ['Highlight', 'Underline', 'Squiggly', 'Strike-out']
-VERSION = 1.0
 
 ## CODE ##
-
-def uniquepath(path):
-    """Return a normalized path."""
-    if path is None or path == '':
-        return path
-
-    return os.path.realpath(
-           os.path.abspath(
-           os.path.normpath(
-           os.path.expandvars(
-           os.path.expanduser(
-               path
-           )))))
 
 def anedit(ifile, ofile, options):
     """Print notes from highlighted text.
@@ -75,15 +56,9 @@ def anedit(ifile, ofile, options):
     All is printed to standard input or standard error.
 
     Options:
-    * options.recursive     Handle directories
-    * options.use_title     Print filename/document title instead of full path
     * options.valid_types   PDF annotation types to process
     * options.filter_keys   Only print stated keys.
     * options.remove_key    Don't print key tags
-    * options.with_path     Print the file path with each line
-    * options.with_page     Print the page number with each line
-    * options.buffered      Buffer output
-    * options.list_keys     Print key only
 
     """
     if not os.path.isfile(ifile) or (os.path.exists(ofile) and not os.path.isfile(ofile)):
@@ -202,7 +177,7 @@ def main():
     optional arguments:
       --help                show this help message and exit
       --version             show program's version number and exit
-      -s, --remove-key      Do not print xml-style keys.
+      -s, --show-key        Do print xml-style keys.
       -k FILTER_KEYS, --key FILTER_KEYS
                             Show only listed keys. Use "None" for empty/no key
       -a VALID_TYPES, --annotation-type VALID_TYPES
@@ -216,7 +191,7 @@ def main():
 
     parser.add_argument('--help', action='help', help='show this help message and exit')
     parser.add_argument('--version', action='version', version='%(prog)s {}'.format(VERSION))
-    parser.add_argument('-s', '--remove-key', action='store_true', dest='remove_key', default=False, help='Do not print xml-style keys.')
+    parser.add_argument('-s', '--show-key', action='store_false', dest='remove_key', default=True, help='Do print xml-style keys.')
     parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
     parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=[], help='Extracted annotation types')
 
