@@ -46,6 +46,7 @@ import sys
 import urllib
 import warnings
 from basics import uniquepath, RX_KEY, VALID_TYPES, VERSION
+from normalizer import Dictionary, annotation
 
 
 ## CODE ##
@@ -66,6 +67,8 @@ def anedit(ifile, ofile, options):
 
     url = 'file://{}'.format(urllib.pathname2url(uniquepath(ifile)))
     document = poppler.document_new_from_file(url, None) # Raises glib.GError on error
+
+    wordlist = Dictionary()
 
     notes = []
     for i in range(document.get_n_pages()):
@@ -98,7 +101,7 @@ def anedit(ifile, ofile, options):
                             key, note = m.groups()
 
                     if note is not None and note != '':
-                        sugg = note # FIXME
+                        sugg = annotation(note, wordlist, options)
                         header = ''
                         notes.append((header, annot, note, key, sugg))
 
@@ -110,12 +113,8 @@ def anedit(ifile, ofile, options):
         print "Original: ", note
         print "Suggested:", sugg
         
-        if note == sugg:
-            valid_answers = 'eisq'
-        else:
-            valid_answers = 'yneisq'
-
-        prompt = '[{}]: '.format('/'.join(valid_answers))
+        valid_answers = 'nyecisq'
+        prompt = '[{}]: '.format('/'.join(valid_answers.title()))
         ans = 'NEIN'
         while ans not in valid_answers:
             ans = raw_input(prompt) \
@@ -129,6 +128,9 @@ def anedit(ifile, ofile, options):
                 .replace('edit', 'e') \
                 .replace('skip', 's')
 
+            if ans == '':
+                ans = valid_answers[0] # 'n'
+
         if ans == 'y': # Use suggestion
             if key is None:
                 annot.set_contents(sugg)
@@ -136,9 +138,10 @@ def anedit(ifile, ofile, options):
                 annot.set_contents('<{}>{}</{}>'.format(key, sugg, key))
         elif ans == 'n': # Use original
             pass
-        elif ans == 'e': # Edit manually
+        elif ans in ('e', 'c'): # Edit manually
             def hook():
-                readline.insert_text(note)
+                curr = ans == 'e' and note or sugg
+                readline.insert_text(curr)
                 readline.redisplay()
 
             readline.set_pre_input_hook(hook)
@@ -194,6 +197,7 @@ def main():
     parser.add_argument('-s', '--show-key', action='store_false', dest='remove_key', default=True, help='Do print xml-style keys.')
     parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
     parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=[], help='Extracted annotation types')
+    parser.add_argument('-v', '--verbose', action='store_true', dest='verbose', default=False, help='Verbosity')
 
     parser.add_argument('paths', nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -205,6 +209,12 @@ def main():
     args.valid_types = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.valid_types], [])
    
     # Run highlighter
+    # FIXME: Work on multiple files + recursive
+    # FIXME: Header
+    # FIXME: Edit original vs. edit suggestion
+    # FIXME: Suggestions
+    # FIXME: ifile == ofile
+    # FIXME: Newlines in annotations
     ifile, ofile = args.paths
     anedit(ifile, ofile, args)
 
