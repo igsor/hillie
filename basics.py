@@ -32,7 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 # EXPORTS
-__all__ = ('uniquepath', 'RX_KEY', 'VALID_TYPES', 'VERSION')
+__all__ = ('RX_KEY', 'VALID_TYPES', 'VERSION', 'uniquepath', 'remove_all', 'unique')
 
 # IMPORTS
 import os.path
@@ -59,6 +59,13 @@ def uniquepath(path):
                path
            )))))
 
+def remove_all(lst, item):
+    """Remove all occurences of *item* in *lst*."""
+    while item in lst:
+        lst.remove(item)
+    return lst
+
+unique = lambda s: list(set(s))
 
 
 ## EOF ##

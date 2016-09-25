@@ -35,38 +35,79 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 # EXPORTS
-__all__ = ('highlights', 'main')
+__all__ = ('anedit', 'anedit_multi', 'main')
 
 # IMPORTS
 import glib
+import os
 import os.path
 import poppler
 import readline
 import sys
+import tempfile
 import urllib
-import warnings
 from basics import uniquepath, RX_KEY, VALID_TYPES, VERSION
-from normalizer import Dictionary, annotation
+from normalizer import Dictionary, annotation_fixes
 
 
 ## CODE ##
 
-def anedit(ifile, ofile, options):
-    """Print notes from highlighted text.
+def anedit_multi(options, paths):
+    """Edit annotations of mutliple files.
+
+    All is printed to standard input or standard error.
+
+    Options:
+    * options.recursive     Handle directories
+    * options.suffix        Write changes to a file with suffix appended to original filename
+
+    """
+    for ifile in paths:
+        if not os.path.exists(ifile): continue
+
+        if os.path.isdir(ifile):
+            if options.recursive:
+                try:
+                    contents = [os.path.join(ifile, p) for p in os.listdir(ifile)]
+                    anedit_multi(options, contents)
+                except (Exception, OSError) as err:
+                    msg = '{}: {}: {}\n'.format(sys.argv[0], ifile, err.message) 
+                    sys.stderr.write(msg)
+
+        else:
+            ofile = None
+            if options.suffix is not None:
+                ofile = ifile + options.suffix
+
+            try:
+                anedit(options, ifile, ofile)
+            except (Exception, glib.GError) as err:
+                msg = '{}: {}: {}\n'.format(sys.argv[0], ifile, err.message) 
+                sys.stderr.write(msg)
+
+
+def anedit(options, ifile, ofile=None):
+    """Edit notes from highlights in PDF files.
 
     All is printed to standard input or standard error.
 
     Options:
     * options.valid_types   PDF annotation types to process
+    * options.use_title     Print filename/document title instead of filename
     * options.filter_keys   Only print stated keys.
     * options.remove_key    Don't print key tags
+    * options.verbose       Print varnings
 
     """
+    if ofile is None:
+        ofile = ifile
+
     if not os.path.isfile(ifile) or (os.path.exists(ofile) and not os.path.isfile(ofile)):
-        raise Exception('only works on files')
+        raise Exception('Not a valid file')
 
     url = 'file://{}'.format(urllib.pathname2url(uniquepath(ifile)))
     document = poppler.document_new_from_file(url, None) # Raises glib.GError on error
+    title = options.use_title and document.get_property('title') or os.path.basename(ifile)
 
     wordlist = Dictionary()
 
@@ -101,8 +142,9 @@ def anedit(ifile, ofile, options):
                             key, note = m.groups()
 
                     if note is not None and note != '':
-                        sugg = annotation(note, wordlist, options.verbose)
-                        header = ''
+                        sugg = annotation_fixes(note, wordlist, options.verbose)
+                        pgno = str(page.get_index() + 1)
+                        header = '\n> {}: {}'.format(title, pgno)
                         notes.append((header, annot, note, key, sugg))
 
     # Walk through notes
@@ -113,7 +155,7 @@ def anedit(ifile, ofile, options):
         print "Original: ", note
         print "Suggested:", sugg
         
-        valid_answers = 'nyecisq'
+        valid_answers = 'nyecisq?'
         prompt = '[{}]: '.format('/'.join(valid_answers.title()))
         ans = 'NEIN'
         while ans not in valid_answers:
@@ -126,10 +168,25 @@ def anedit(ifile, ofile, options):
                 .replace('ignore', 'i') \
                 .replace('ign', 'i') \
                 .replace('edit', 'e') \
+                .replace('correct', 'c') \
                 .replace('skip', 's')
 
             if ans == '':
-                ans = valid_answers[0] # 'n'
+                ans = valid_answers[0] # default is 'n'
+
+            if ans == '?':
+                ans = 'NEIN'
+                print '''Usage:
+
+                n   no      Stick with the original text (the default)
+                y   yes     Accept the suggested text
+                e   edit    Edit the original text
+                c   change  Edit the suggested text
+                i   ignore  Ignore for now (again prompted later)
+                s   skip    Save and exit
+                q   quit    Abort and exit (changes are lost)
+
+                '''
 
         if ans == 'y': # Use suggestion
             if key is None:
@@ -141,11 +198,12 @@ def anedit(ifile, ofile, options):
         elif ans in ('e', 'c'): # Edit manually
             def hook():
                 curr = ans == 'e' and note or sugg
+                curr = curr.replace('\n', '\\n')
                 readline.insert_text(curr)
                 readline.redisplay()
 
             readline.set_pre_input_hook(hook)
-            sugg = raw_input().strip()
+            sugg = raw_input().strip().replace('\\n', '\n')
             readline.set_pre_input_hook(None)
             notes.insert(0, (header, annot, note, key, sugg))
         elif ans == 'i': # Ignore note for now
@@ -156,50 +214,60 @@ def anedit(ifile, ofile, options):
             break
 
     # save changes
-    print "Saving changes" # FIXME: Ask first
+    print "Saving changes"
 
-    url2 = 'file://{}'.format(urllib.pathname2url(uniquepath(ofile)))
-    if url == url2: # FIXME
-        warnings.warn("Due to lack of documentation I don't know how to save documents in-place. The suffix '-mod' is added to the path")
-        url2 += '-mod'
-
+    # Due to lack of documentation, I don't know how to save a file in-place
+    # So now, in all case, the result is stored to a temporary file, then
+    # moved to the destination, possibly overwriting the original file.
+    fh, tfile = tempfile.mkstemp()
+    url2 = 'file://{}'.format(urllib.pathname2url(uniquepath(tfile)))
     document.save(url2)
+    os.rename(tfile, ofile) # Move to destination
+
 
 def main():
-    """Print highlighted areas from PDF documents.
+    """Edit text notes from highlighted ares in PDF documents.
 
-    usage: hillie [--help] [--version] [-h] [-H] [-n] [-s] [-t] [-k FILTER_KEYS]
-                  [-r] [-a VALID_TYPES] [--line-buffered]
-                  ...
+	usage: anedit [--help] [--version] [-s] [-k FILTER_KEYS] [-t] [-a VALID_TYPES]
+	              [--suffix SUFFIX] [-r] [-v]
+	              ...
 
-    Print highlighted areas from PDF documents.
+	Edit text notes from highlighted ares in PDF documents.
 
-    positional arguments:
-      paths
+	positional arguments:
+	  paths                 List of files or directories to be processed
 
-    optional arguments:
-      --help                show this help message and exit
-      --version             show program's version number and exit
-      -s, --show-key        Do print xml-style keys.
-      -k FILTER_KEYS, --key FILTER_KEYS
-                            Show only listed keys. Use "None" for empty/no key
-      -a VALID_TYPES, --annotation-type VALID_TYPES
-                            Extracted annotation types
+	optional arguments:
+	  --help                show this help message and exit
+	  --version             show program's version number and exit
+	  -s, --show-key        Do print xml-style keys.
+	  -k FILTER_KEYS, --key FILTER_KEYS
+	                        Show only listed keys. Use "None" for empty/no key
+	  -t, --use-title       Print document title instead of path.
+	  -a VALID_TYPES, --annotation-type VALID_TYPES
+	                        Extracted annotation types
+	  --suffix SUFFIX       Store modifications in a file with the given suffix
+	  -r, --recursive       Read all files under each directory, recursively.
+	  -v, --verbose         Increase verbosity
+
 
     """
     import argparse
 
-    usage = """Print highlighted areas from PDF documents."""
+    usage = """Edit text notes from highlighted ares in PDF documents."""
     parser = argparse.ArgumentParser(description=usage, add_help=False)
 
     parser.add_argument('--help', action='help', help='show this help message and exit')
     parser.add_argument('--version', action='version', version='%(prog)s {}'.format(VERSION))
     parser.add_argument('-s', '--show-key', action='store_false', dest='remove_key', default=True, help='Do print xml-style keys.')
     parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
+    parser.add_argument('-t', '--use-title', action='store_true', dest='use_title', default=False, help='Print document title instead of path.')
     parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=[], help='Extracted annotation types')
-    parser.add_argument('-v', '--verbose', action='store_true', dest='verbose', default=False, help='Verbosity')
+    parser.add_argument('--suffix', dest='suffix', default=None, help='Store modifications in a file with the given suffix')
+    parser.add_argument('-r', '--recursive', action='store_true', dest='recursive', default=False, help='Read all files under each directory, recursively.')
+    parser.add_argument('-v', '--verbose', action='store_true', dest='verbose', default=False, help='Increase verbosity')
 
-    parser.add_argument('paths', nargs=argparse.REMAINDER)
+    parser.add_argument('paths', nargs=argparse.REMAINDER, help='List of files or directories to be processed')
     args = parser.parse_args()
     if len(args.valid_types) == 0: # Default annotation types if none given.
         args.valid_types = VALID_TYPES
@@ -209,14 +277,7 @@ def main():
     args.valid_types = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.valid_types], [])
    
     # Run highlighter
-    # FIXME: Work on multiple files + recursive
-    # FIXME: Header
-    # FIXME: Edit original vs. edit suggestion
-    # FIXME: Suggestions
-    # FIXME: ifile == ofile
-    # FIXME: Newlines in annotations
-    ifile, ofile = args.paths
-    anedit(ifile, ofile, args)
+    anedit_multi(args, args.paths)
 
 
 ## MAIN ##
