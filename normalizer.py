@@ -62,6 +62,10 @@ class Dictionary(object):
         if words is None:
             words = os.path.join(os.path.dirname(__file__), 'words.t')
 
+        if not os.path.exists(stems) or not os.path.exists(words):
+            src = os.path.join(os.path.dirname(__file__), 'collected-words')
+            self.build_dict(src, stems, words)
+
         self.stems = [l.strip() for l in open(stems)]
         self.words = [l.strip() for l in open(words)]
 

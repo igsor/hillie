@@ -71,11 +71,14 @@ Problems:
 A word about wordlists
 
     Excerpts of the sources below are combined in 'collected-words'
-    To use the 'anedit', you first have to create dictionaries from this file, e.g.
+    To build the files for 'anedit', you can run
     
         $ python -i normalizer.py
         [Ignore all the warnings and stuff]
         >>> c.build_dict('collected-words')
+
+    This is done automatically if the files are not found (and can
+    lead to errors if the source directory is not writeable).
 
     Sources:
     * http://dreamsteep.com/projects/the-english-open-word-list.html
