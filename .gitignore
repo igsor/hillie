@@ -1,2 +1,4 @@
 *.pyc
 libs/
+stems.t
+words.t
