@@ -71,7 +71,7 @@ class Dictionary(object):
         normed = candidate.lower()
         return normed in self.words
 
-def annotation(text, words, options):
+def annotation(text, words, verbose=False):
     """
 
     Systematic errors
@@ -82,6 +82,9 @@ def annotation(text, words, options):
     * Formula errors
 
     """
+    # Unicode hyphens
+    text = text.replace('\xe2\x80\x94', ' - ') # Replace in text as well
+
     # Leading / trailing whitespaces
     normed = text.strip()
 
@@ -91,27 +94,33 @@ def annotation(text, words, options):
     # Remove punctuation
     normed = _remove_punctuation(normed).strip()
 
-    # Unicode hyphens
-    normed = normed.replace('\xe2\x80\x94', ' - ').strip()
-
     mods = []
-    for w in normed.lower().split():
+    cands = normed.split()
+    while len(cands) > 0:
+        w = cands.pop(0)
+
         if w == '-' or len(w.strip()) == 0: # Invalid or empty words
             continue
 
-        elif '-' in w: # Misplaced hyphens
+        if '-' in w: # Misplaced hyphens
             repl = w.replace('-', '')
             if words.check(repl):
                 mods.append((w, repl))
+                continue
 
-        elif not words.check(w): # Missing whitespace
+        if not words.check(w): # Missing whitespace
+            if '-' in w: # Combination of words; Test them individually
+                cands.extend(w.split('-'))
+                continue
+
             splits = [[w[:i], w[i:]] for i in range(len(w)+1) if words.check(w[:i]) and words.check(w[i:])]
             if len(splits) == 0:
-                if options.verbose:
+                if verbose:
                     warnings.warn('No solution found for {}'.format(w))
 
             elif len(splits) == 1: # Unique result
                 mods.append((w, ' '.join(splits[0])))
+                continue
 
             else: # Several results
                 score = [sum(map(words.match, s)) for s in splits]
@@ -119,14 +128,14 @@ def annotation(text, words, options):
                 if tmp[0] != tmp[1]: # Unique result
                     idx = score.index(max(score))
                     mods.append((w, ' '.join(splits[idx])))
-                elif options.verbose:
+                    continue
+                elif verbose:
                     warnings.warn('No unique solution found for {}'.format(w))
-
 
     for src, trg in mods:
         text = text.replace(src, trg)
 
-    return text
+    return text.strip()
 
 
 
@@ -134,5 +143,18 @@ if __name__ == '__main__':
     c = Dictionary()
     annots = [l.strip() for l in open('/tmp/annots.t')]
     get_words = lambda text: _remove_punctuation(text).split()
+
+    train = [l.strip() for l in open('/tmp/training.t')]
+    samples = [l[len('Original:  '):] for l in train if l.startswith('Original:  ')]
+    truths  = [l[len('Suggested: '):] for l in train if l.startswith('Suggested: ')]
+
+    assert(len(samples) == len(truths))
+
+    for idx, t in enumerate(samples):
+        samples[idx] = t.replace('--', '\xe2\x80\x94')
+
+    for ip, op in zip(samples, truths):
+        if not annotation(ip, c) == op:
+            print ip, '\n', annotation(ip, c), '\n', op, '\n'
 
 ## EOF ##

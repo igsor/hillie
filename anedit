@@ -101,7 +101,7 @@ def anedit(ifile, ofile, options):
                             key, note = m.groups()
 
                     if note is not None and note != '':
-                        sugg = annotation(note, wordlist, options)
+                        sugg = annotation(note, wordlist, options.verbose)
                         header = ''
                         notes.append((header, annot, note, key, sugg))
 
