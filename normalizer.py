@@ -32,13 +32,14 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 # EXPORTS
-__all__ = ('Dictionary', 'annotation_fixes')
+__all__ = ('Dictionary', 'annotation_fixes', 'normalize_name')
 
 # IMPORTS
 from porter2 import stem
-import re
-import warnings
 import os.path
+import re
+import unicodedata
+import warnings
 
 def _remove_punctuation(text):
     return text \
@@ -169,7 +170,11 @@ def annotation_fixes(text, words, verbose=False):
 
     return text.strip()
 
-
+def normalize_name(name):
+    """Normalize author names.
+    Actually there's not much to do. Only special characters are removed for compatibility.
+    """
+    return unicodedata.normalize('NFKD', name.decode('utf-8')).encode('ascii', 'ignore').title()
 
 if __name__ == '__main__':
     # Some tests
