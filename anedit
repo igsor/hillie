@@ -117,7 +117,7 @@ def anedit(options, ifile, ofile=None):
         annot_mappings = page.get_annot_mapping()
         num_annots = len(annot_mappings)
         if num_annots > 0:
-            for annot_mapping in annot_mappings:
+            for n_annot, annot_mapping in enumerate(annot_mappings):
                 annot = annot_mapping.annot
                 annot_type = annot.get_annot_type().value_nick
                 annot_type = annot_type[0].upper() + annot_type[1:]
@@ -144,7 +144,7 @@ def anedit(options, ifile, ofile=None):
                     if note is not None and note != '':
                         sugg = annotation_fixes(note, wordlist, options.verbose)
                         pgno = str(page.get_index() + 1)
-                        header = '\n> {}: {}'.format(title, pgno)
+                        header = '\n> {}: page {} ({}), {}/{}'.format(title, pgno, page.props.label, n_annot+1, num_annots)
                         notes.append((header, annot, note, key, sugg))
 
     # Walk through notes

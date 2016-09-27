@@ -41,7 +41,7 @@ import re
 ## CONFIGURATION ##
 
 RX_KEY = re.compile('<(.*?)>\s*(.*)\s*</\\1>', re.I)
-VALID_TYPES = ['Highlight', 'Underline', 'Squiggly', 'Strike-out']
+VALID_TYPES = ['highlight', 'underline', 'squiggly', 'strike-out']
 VERSION = 1.0
 
 ## CODE ##

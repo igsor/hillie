@@ -5,33 +5,10 @@ Problems:
 1. Get annotations from PDFs
 
 2. Clean annotations
-    * Systematic errors in older documents
+    * Automatically corrept systematic errors in older documents
       * hello-\nworld -> hello-world -> helloworld
       * hello\nworld -> helloworld -> hello world
-    * Math, names, format jitters
-      * Manual correction
-      * Ignore
-      > Get a list of unknown words
-
-    > Make a tool for this!
-        * Input file
-        * Output file
-        > Input/Output can be the same file
-        * Suggest corrected annotation
-            > Show original annotation
-            > Show suggested annotation (if different)
-            > Replace linebreaks with \n and transform them back when changing annotation
-            > Prompt
-                * yes (overwrite annotation with suggestion)
-                * no (leave annotation as is)
-                * edit (show on command line to edit)
-                * ignore (ask later)
-                * ignore subsequent (save and exit)
-                * quit (abort, i.e. exit w/o saving)
-                > yes/no only if there is a suggestion different from the original
-            > use readline module
-            > Store edited annotations in output file
-            > Option: Show/Hide keys
+    * Manually correct Math, names, format jitters
 
 3. Build up the graph structure
 
@@ -45,7 +22,7 @@ Problems:
         > Authors
             * Normalize names
             * As nodes in graph
-            * Linked to papers
+            * Linked to papers (authored / authored by)
 
     * Keywords
         * Normalize keywords
@@ -85,6 +62,5 @@ A word about wordlists
     * http://www-01.sil.org/linguistics/wordlists/english/
     * http://www-personal.umich.edu/~jlawler/wordlist.html
     * https://github.com/dwyl/english-words
-
 
 ## EOF ##
