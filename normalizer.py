@@ -32,7 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 # EXPORTS
-__all__ = ('Dictionary', 'annotation_fixes', 'normalize_name')
+__all__ = ('Dictionary', 'annotation_fixes', 'normalize_name', 'normalize_title')
 
 # IMPORTS
 from porter2 import stem
@@ -169,6 +169,11 @@ def annotation_fixes(text, words, verbose=False):
         text = text.replace(src, trg)
 
     return text.strip()
+
+def normalize_title(title):
+    """Normalize titles.
+    """
+    return title.title()
 
 def normalize_name(name):
     """Normalize author names.
