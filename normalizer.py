@@ -41,6 +41,22 @@ import re
 import unicodedata
 import warnings
 
+def _levenshtein(s1, s2):
+    l1 = len(s1)
+    l2 = len(s2)
+
+    matrix = [range(l1 + 1)] * (l2 + 1)
+    for zz in range(l2 + 1):
+        matrix[zz] = range(zz,zz + l1 + 1)
+    for zz in range(0,l2):
+        for sz in range(0,l1):
+            if s1[sz] == s2[zz]:
+                matrix[zz+1][sz+1] = min(matrix[zz+1][sz] + 1, matrix[zz][sz+1] + 1, matrix[zz][sz])
+            else:
+                matrix[zz+1][sz+1] = min(matrix[zz+1][sz] + 1, matrix[zz][sz+1] + 1, matrix[zz][sz] + 1)
+
+    return matrix[l2][l1]
+
 def _remove_punctuation(text):
     return text \
             .replace('.', '') \
@@ -181,23 +197,80 @@ def normalize_name(name):
     """
     return unicodedata.normalize('NFKD', name.decode('utf-8')).encode('ascii', 'ignore').title()
 
+def normalize_keyword(kw):
+    """Normalize keyword
+    Extract abbreviations, prefixes and remove references.
+    """
+    kw = kw.replace('\xe2\x80\x94', '-').replace('\xe2\x80\x93', '-')
+    orig = kw = unicodedata.normalize('NFKD', kw.decode('utf-8')).encode('ascii', 'ignore').title()
+
+    # Abbreviation
+    nodes = []
+    for prefix, suffix, embraced in re.findall('([-\s\w]+?)\s*([[(]\s*(.*?)\s*[)\]])', kw):
+        if embraced.isdigit(): # Reference
+            kw = kw.replace(suffix, '').strip()
+            continue
+
+        if 'et al' in embraced: # Reference
+            kw = kw.replace(suffix, '').strip()
+            continue
+
+        if re.match('\w*\s\d{2,4}', embraced) is not None: # Reference
+            kw = kw.replace(suffix, '').strip()
+            continue
+
+        # Chance of an abbreviation (min. 2 letters, in order)
+        firsts = ''.join(map(lambda s: s[0].lower(), prefix.replace('-', ' ').split()))
+        dmax = max(len(firsts), len(embraced))
+        if 1.0 * _levenshtein(firsts, embraced.lower()) / dmax <= 0.67:
+            nodes.append((embraced.strip(), 'abbreviation', 'stands for'))
+            kw = kw.replace(suffix, '').strip()
+
+    for embraced, suffix in re.findall('\[(.*?)\]\s*(\w+)', kw):
+        # Specification
+        nodes.append((embraced.strip(), 'specification', ''))
+        kw = kw.replace('[{}]'.format(embraced), '').strip()
+
+    edges = []
+    for lbl, eout, ein in nodes:
+        edges += [(kw, lbl, eout), (lbl, kw, ein)]
+
+    return orig, kw, edges
+
 if __name__ == '__main__':
     # Some tests
-    c = Dictionary()
-    annots = [l.strip() for l in open('/tmp/annots.t')]
-    get_words = lambda text: _remove_punctuation(text).split()
+    import os.path
 
-    train = [l.strip() for l in open('/tmp/training.t')]
-    samples = [l[len('Original:  '):] for l in train if l.startswith('Original:  ')]
-    truths  = [l[len('Suggested: '):] for l in train if l.startswith('Suggested: ')]
+    if os.path.exists('/tmp/annots.t'):
+        c = Dictionary()
+        annots = [l.strip() for l in open('/tmp/annots.t')]
+        get_words = lambda text: _remove_punctuation(text).split()
 
-    assert(len(samples) == len(truths))
+        train = [l.strip() for l in open('/tmp/training.t')]
+        samples = [l[len('Original:  '):] for l in train if l.startswith('Original:  ')]
+        truths  = [l[len('Suggested: '):] for l in train if l.startswith('Suggested: ')]
 
-    for idx, t in enumerate(samples):
-        samples[idx] = t.replace('--', '\xe2\x80\x94')
+        assert(len(samples) == len(truths))
 
-    for ip, op in zip(samples, truths):
-        if not annotation(ip, c) == op:
-            print ip, '\n', annotation(ip, c), '\n', op, '\n'
+        for idx, t in enumerate(samples):
+            samples[idx] = t.replace('--', '\xe2\x80\x94')
+
+        for ip, op in zip(samples, truths):
+            if not annotation(ip, c) == op:
+                print ip, '\n', annotation(ip, c), '\n', op, '\n'
+
+    if False:
+        print normalize_keyword('[Local similarity] Adamic-Adar')
+        print normalize_keyword('Mapping is the oriented, or directed, version of an alignment')
+        print normalize_keyword('Markov Random Fields (MRFs)')
+        print normalize_keyword('local closed worldassumption (LCWA)')
+        print normalize_keyword('local-closed world assumption (LCWA)')
+        print normalize_keyword('knowledge representation and reasoning (KRR)')
+        print normalize_keyword('knowledge extraction (KE)')
+        print normalize_keyword('object identification (Lim et al. 1993)')
+        print normalize_keyword('Ontology-based information extraction(OBIE)')
+        print normalize_keyword('overall measure, also defined in (Melnik et al. 2002) as matching accuracy')
+        print normalize_keyword('ontology merging. [90]')
+
 
 ## EOF ##
