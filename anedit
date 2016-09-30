@@ -144,7 +144,7 @@ def anedit(options, ifile, ofile=None):
                     if note is not None and note != '':
                         sugg = annotation_fixes(note, wordlist, options.verbose)
                         pgno = str(page.get_index() + 1)
-                        header = '\n> {}: page {} ({}), {}/{}'.format(title, pgno, page.props.label, n_annot+1, num_annots)
+                        header = '{}: page {} ({}), {}/{}'.format(title, pgno, page.props.label, n_annot+1, num_annots)
                         notes.append((header, annot, note.strip(), key, sugg.strip()))
 
     # Walk through notes
@@ -152,7 +152,8 @@ def anedit(options, ifile, ofile=None):
     while len(notes) > 0:
         header, annot, note, key, sugg = notes.pop(0)
 
-        print header, "ETA {}".format(len(notes))
+        print ""
+        print "\033[94m> {}, ETA {}\033[0m".format(header, len(notes))
         print "Original: ", note
         if note != sugg:
             print "Suggested:", sugg
