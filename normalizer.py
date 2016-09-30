@@ -189,13 +189,13 @@ def annotation_fixes(text, words, verbose=False):
 def normalize_title(title):
     """Normalize titles.
     """
-    return title.title()
+    return title.strip().title()
 
 def normalize_name(name):
     """Normalize author names.
     Actually there's not much to do. Only special characters are removed for compatibility.
     """
-    return unicodedata.normalize('NFKD', name.decode('utf-8')).encode('ascii', 'ignore').title()
+    return unicodedata.normalize('NFKD', name.decode('utf-8')).encode('ascii', 'ignore').strip().title()
 
 def normalize_keyword(kw):
     """Normalize keyword
