@@ -145,15 +145,17 @@ def anedit(options, ifile, ofile=None):
                         sugg = annotation_fixes(note, wordlist, options.verbose)
                         pgno = str(page.get_index() + 1)
                         header = '\n> {}: page {} ({}), {}/{}'.format(title, pgno, page.props.label, n_annot+1, num_annots)
-                        notes.append((header, annot, note, key, sugg))
+                        notes.append((header, annot, note.strip(), key, sugg.strip()))
 
     # Walk through notes
+    has_changes = False
     while len(notes) > 0:
         header, annot, note, key, sugg = notes.pop(0)
 
-        print header
+        print header, "ETA {}".format(len(notes))
         print "Original: ", note
-        print "Suggested:", sugg
+        if note != sugg:
+            print "Suggested:", sugg
         
         valid_answers = 'nyecisq?'
         prompt = '[{}]: '.format('/'.join(valid_answers.title()))
@@ -189,6 +191,7 @@ def anedit(options, ifile, ofile=None):
                 '''
 
         if ans == 'y': # Use suggestion
+            has_changes = True
             if key is None:
                 annot.set_contents(sugg)
             else:
@@ -214,16 +217,28 @@ def anedit(options, ifile, ofile=None):
             break
 
     # save changes
-    print "Saving changes"
+    if has_changes:
+        print "Saving changes"
 
-    # Due to lack of documentation, I don't know how to save a file in-place
-    # So now, in all case, the result is stored to a temporary file, then
-    # moved to the destination, possibly overwriting the original file.
-    fh, tfile = tempfile.mkstemp()
-    url2 = 'file://{}'.format(urllib.pathname2url(uniquepath(tfile)))
-    document.save(url2)
-    os.rename(tfile, ofile) # Move to destination
+        # Due to lack of documentation, I don't know how to save a file in-place
+        # So now, in all case, the result is stored to a temporary file, then
+        # moved to the destination, possibly overwriting the original file.
+        fh, tfile = tempfile.mkstemp()
+        url2 = 'file://{}'.format(urllib.pathname2url(uniquepath(tfile)))
+        document.save(url2)
+        ans = 'NEIN'
+        while ans not in ('y', 'n'):
+            ans = raw_input('Overwrite {}? [y/n] '.format(ofile)).strip().lower()
 
+        if ans == 'y':
+            os.rename(tfile, ofile) # Move to destination
+        else:
+            ans = 'NEIN'
+            while ans not in ('y', 'n'):
+                ans = raw_input('Delete {}? [y/n] '.format(tfile)).strip().lower()
+
+            if ans == 'y':
+                os.unlink(tfile)
 
 def main():
     """Edit text notes from highlighted ares in PDF documents.
