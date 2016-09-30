@@ -202,10 +202,10 @@ def normalize_keyword(kw):
     Extract abbreviations, prefixes and remove references.
     """
     kw = kw.replace('\xe2\x80\x94', '-').replace('\xe2\x80\x93', '-')
-    orig = kw = unicodedata.normalize('NFKD', kw.decode('utf-8')).encode('ascii', 'ignore').title()
+    orig = kw = unicodedata.normalize('NFKD', kw.decode('utf-8')).encode('ascii', 'ignore')
 
     # Abbreviation
-    nodes = []
+    abbrevs = []
     for prefix, suffix, embraced in re.findall('([-\s\w]+?)\s*([[(]\s*(.*?)\s*[)\]])', kw):
         if embraced.isdigit(): # Reference
             kw = kw.replace(suffix, '').strip()
@@ -223,19 +223,16 @@ def normalize_keyword(kw):
         firsts = ''.join(map(lambda s: s[0].lower(), prefix.replace('-', ' ').split()))
         dmax = max(len(firsts), len(embraced))
         if 1.0 * _levenshtein(firsts, embraced.lower()) / dmax <= 0.67:
-            nodes.append((embraced.strip(), 'abbreviation', 'stands for'))
+            abbrevs.append((prefix.strip(), embraced.strip()))
             kw = kw.replace(suffix, '').strip()
 
+    specs = []
     for embraced, suffix in re.findall('\[(.*?)\]\s*(\w+)', kw):
         # Specification
-        nodes.append((embraced.strip(), 'specification', ''))
+        specs.append((suffix.strip(), embraced.strip()))
         kw = kw.replace('[{}]'.format(embraced), '').strip()
 
-    edges = []
-    for lbl, eout, ein in nodes:
-        edges += [(kw, lbl, eout), (lbl, kw, ein)]
-
-    return orig, kw, edges
+    return kw, abbrevs, specs
 
 if __name__ == '__main__':
     # Some tests
