@@ -157,6 +157,8 @@ def anedit(options, ifile, ofile=None):
         print "Original: ", note
         if note != sugg:
             print "Suggested:", sugg
+        elif options.diffs:
+            continue
         
         valid_answers = 'nyecisq?'
         prompt = '[{}]: '.format('/'.join(valid_answers.title()))
@@ -279,6 +281,7 @@ def main():
     parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
     parser.add_argument('-t', '--use-title', action='store_true', dest='use_title', default=False, help='Print document title instead of path.')
     parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=[], help='Extracted annotation types')
+    parser.add_argument('-d', '--only-diff', action='store_true', dest='diffs', default=False, help='Only prompt lines with a distinct suggestion')
     parser.add_argument('--suffix', dest='suffix', default=None, help='Store modifications in a file with the given suffix')
     parser.add_argument('-r', '--recursive', action='store_true', dest='recursive', default=False, help='Read all files under each directory, recursively.')
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose', default=False, help='Increase verbosity')

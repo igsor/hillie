@@ -186,6 +186,7 @@ def annotation_fixes(text, words, verbose=False):
 
     # global corrections
     text = re.sub('([.,!\]?:;)}])(\w)', '\\1 \\2', text) # space after punctuation
+    text = text.replace('e. g.', 'e.g.').replace('a. k. a.', 'a.k.a.').replace('i. e.', 'i.e.') # common abbreviations
     text = re.sub('(\w)([({\[])', '\\1 \\2', text) # space before punctuation
     text = re.sub('\s\s+', ' ', text) # double space
 
