@@ -184,6 +184,11 @@ def annotation_fixes(text, words, verbose=False):
     for src, trg in mods:
         text = text.replace(src, trg)
 
+    # global corrections
+    text = re.sub('([.,!\]?:;)}])(\w)', '\\1 \\2', text) # space after punctuation
+    text = re.sub('(\w)([({\[])', '\\1 \\2', text) # space before punctuation
+    text = re.sub('\s\s+', ' ', text) # double space
+
     return text.strip()
 
 def normalize_title(title):
