@@ -103,7 +103,9 @@ def highlights(files, options):
                     annot_type = annot_type[0].upper() + annot_type[1:]
                     if annot_type.lower() in options.valid_types:
 
-                        note = annot.get_contents().strip()
+                        note = annot.get_contents()
+                        if note is None: continue
+                        note = note.strip()
 
                         if options.list_keys : # Print keys
                             m = RX_KEY.match(note)
