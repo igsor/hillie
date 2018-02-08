@@ -1,10 +1,7 @@
 #!/usr/bin/env python
-"""Display notes in PDF files.
+"""Print notes okular annotation files.
 
-Print notes in PDF files.
-
-Written by Matthias Baumgartner, 2016
-Based on an example by Mahmood S. Zargar
+Written by Matthias Baumgartner, 2018
 
 Copyright (c) 2016, Matthias Baumgartner
 All rights reserved.
@@ -38,21 +35,19 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 # EXPORTS
-__all__ = ('highlights', 'main')
+__all__ = ('okular_highlights', 'main')
 
 # IMPORTS
-from basics import uniquepath, VALID_TYPES, VERSION
+from basics import uniquepath, VERSION
+from lxml import objectify
 from shared import print_note
-import glib
 import os.path
-import poppler
 import sys
-import urllib
 
 ## CODE ##
 
-def highlights(files, options):
-    """Print notes from highlighted text.
+def okular_highlights(files, options):
+    """Print notes from okular annotation files.
 
     All is printed to standard input or standard error.
 
@@ -71,13 +66,36 @@ def highlights(files, options):
     for path in files:
         if os.path.isdir(path):
             if options.recursive:
-                highlights([os.path.join(path, p) for p in os.listdir(path)], options)
+                okular_highlights([os.path.join(path, p) for p in os.listdir(path)], options)
             continue # Omit directories
 
-        url = 'file://{}'.format(urllib.pathname2url(uniquepath(path)))
         try:
-            document = poppler.document_new_from_file(url, None)
-        except glib.GError as err:
+            with open(uniquepath(path)) as ifile:
+                root = objectify.fromstring(ifile.read())
+
+            if options.use_title:
+                m = re.search('^\d+\.(.*)\.xml$', path, re.I)
+                if m is not None:
+                    path = m.groups()[0]
+                    path, ext = os.path.splitext(path)
+
+            for page in root.pageList.page:
+                if not hasattr(page, 'annotationList') or \
+                   not hasattr(page.annotationList, 'annotation'):
+                    continue # Page has no annotation
+
+                for annot in page.annotationList.annotation:
+                    if annot.get('type', '-1') in options.valid_types:
+                        base = annot.find('base')
+                        if base is None: continue # Annotation has no content
+
+                        note = base.get('contents').strip()
+                        if note is None: continue # Annotation has no content
+
+                        page_no = page.get('number', -1)
+                        print_note(path, note, page_no, options)
+
+        except IOError, err:
             msg = '{}: {}: {}\n'.format(sys.argv[0], path, err.message) 
             sys.stderr.write(msg)
             if not options.buffered:
@@ -85,40 +103,18 @@ def highlights(files, options):
 
             continue # Abort on failure
 
-        if options.use_title:
-            title = document.get_property('title')
-            if title is not None and title != '': # Pick embedded title
-                path = title
-            else: # Pick filename w/o extension instead
-                path = os.path.basename(path)
-                path, ext = os.path.splitext(path)
+        except AttributeError, err:
+            continue # Document has no annotations
 
-        for i in range(document.get_n_pages()):
-            page = document.get_page(i)
-            annot_mappings = page.get_annot_mapping()
-            num_annots = len(annot_mappings)
-            if num_annots > 0:
-                for annot_mapping in annot_mappings:
-                    annot = annot_mapping.annot
-                    annot_type = annot.get_annot_type().value_nick
-                    annot_type = annot_type[0].upper() + annot_type[1:]
-                    if annot_type.lower() in options.valid_types:
-
-                        note = annot.get_contents()
-                        if note is None: continue
-                        note = note.strip()
-
-                        page_no = str(page.get_index() + 1)
-                        print_note(path, note, page_no, options)
 
 def main():
-    """Print highlighted areas from PDF documents.
+    """Print notes okular annotation files.
 
     usage: hillie [--help] [--version] [-h] [-H] [-n] [-s] [-t] [-k FILTER_KEYS]
                   [-r] [-a VALID_TYPES] [--line-buffered]
                   ...
 
-    Print highlighted areas from PDF documents.
+    Print notes okular annotation files.
 
     positional arguments:
       paths
@@ -147,7 +143,7 @@ def main():
     """
     import argparse
 
-    usage = """Print highlighted areas from PDF documents."""
+    usage = """Print notes okular annotation files."""
     parser = argparse.ArgumentParser(description=usage, add_help=False)
 
     parser.add_argument('--help', action='help', help='show this help message and exit')
@@ -159,7 +155,7 @@ def main():
     parser.add_argument('-t', '--use-title', action='store_true', dest='use_title', default=False, help='Print document title instead of path.')
     parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
     parser.add_argument('-r', '--recursive', action='store_true', dest='recursive', default=False, help='Read all files under each directory, recursively.')
-    parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=[], help='Extracted annotation types')
+    parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=['4'], help='Extracted annotation types')
     parser.add_argument('--list-keys', action='store_true', dest='list_keys', default=False, help='Print a list of all keys in the document. Does not print notes.')
     parser.add_argument('--line-buffered', action='store_false', dest='buffered', default=True, help='Use line buffering on output. This can cause a performance penalty.')
 
@@ -168,15 +164,11 @@ def main():
     if args.with_path is None: # with_path default depends on number of files given
         args.with_path = len(args.paths) > 1
 
-    if len(args.valid_types) == 0: # Default annotation types if none given.
-        args.valid_types = VALID_TYPES
-
     # Allow comma-seperated keys/types and ensure lower case
     args.filter_keys = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.filter_keys], [])
-    args.valid_types = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.valid_types], [])
    
     # Run highlighter
-    highlights(args.paths, args)
+    okular_highlights(args.paths, args)
 
 
 ## MAIN ##
