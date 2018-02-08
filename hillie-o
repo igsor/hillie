@@ -42,6 +42,7 @@ from basics import uniquepath, VERSION
 from lxml import objectify
 from shared import print_note
 import os.path
+import lxml
 import sys
 
 ## CODE ##
@@ -97,6 +98,22 @@ def okular_highlights(files, options):
 
         except IOError, err:
             msg = '{}: {}: {}\n'.format(sys.argv[0], path, err.message) 
+            sys.stderr.write(msg)
+            if not options.buffered:
+                sys.stderr.flush()
+
+            continue # Abort on failure
+
+        except lxml.etree.XMLSyntaxError, err:
+            msg = '{}: {}: {}\n'.format(sys.argv[0], path, err.message)
+            sys.stderr.write(msg)
+            if not options.buffered:
+                sys.stderr.flush()
+
+            continue # Abort on failure
+
+        except UnicodeEncodeError, err:
+            msg = '{}: {}: {}\n'.format(sys.argv[0], path, err.message)
             sys.stderr.write(msg)
             if not options.buffered:
                 sys.stderr.flush()

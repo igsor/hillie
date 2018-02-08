@@ -37,11 +37,15 @@ __all__ = ('print_note', )
 # imports
 from basics import RX_KEY
 import sys
+#import unicodedata
 
 
 ## code ##
 
 def print_note(path, note, page_no, options):
+    # encoding
+    #note =  unicodedata.normalize('NFKD', note.decode('utf-8', 'ignore')).encode('ascii', 'ignore').strip()
+
     if options.list_keys : # Print keys
         m = RX_KEY.match(note)
         key = m is not None and m.groups()[0].strip().lower() or 'none'
