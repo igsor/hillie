@@ -47,6 +47,9 @@ import cStringIO
 import os
 import sqlite3
 
+# config
+ANSWER_DEFAULT = 'y' # y, n, q, s
+
 
 ## code ##
 
@@ -58,6 +61,7 @@ def pusher(conn, files, options):
     * options.recursive     Handle directories
     * options.valid_types   PDF annotation types to process
     * options.filter_keys   Only print stated keys.
+    * options.ask           Ask before adding tag.
 
     """
     for path in files:
@@ -68,18 +72,28 @@ def pusher(conn, files, options):
 
         print "\n== {} ==".format(basename(path))
         for note in annotations_from_okular(path, options):
-            print "Adding {}".format(note)
-            conn.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (note, ))
-            conn.execute("""
-                INSERT OR IGNORE
-                INTO itemTags(itemID, tagID, type)
-                SELECT itemAttachments.parentItemID, tags.tagID, 0
-                FROM tags, itemAttachments
-                WHERE tags.name = ?
-                AND itemAttachments.path = ?
-                """,
-                (note, "storage:{}".format(path))
-            )
+            ans = options.ask and 'x' or 'y'
+            while ans not in ('y', 'n', 'q', 's'):
+                ans = raw_input("Add {} [Y/n/s/q]: ".format(note))
+                ans = ans.strip().lower()[::1]
+                ans = ans == '' and ANSWER_DEFAULT or ans
+
+            if ans == 's': break # Continue with next file
+            elif ans == 'q': return # Abort
+            elif ans == 'y': # Process
+                if not options.ask: print "Adding '{}'".format(note)
+
+                conn.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (note, ))
+                conn.execute("""
+                    INSERT OR IGNORE
+                    INTO itemTags(itemID, tagID, type)
+                    SELECT itemAttachments.parentItemID, tags.tagID, 0
+                    FROM tags, itemAttachments
+                    WHERE tags.name = ?
+                    AND itemAttachments.path = ?
+                    """,
+                    (note, "storage:{}".format(path))
+                )
 
     conn.commit()
 
@@ -116,9 +130,10 @@ def main():
     parser.add_argument('--version', action='version', version='%(prog)s {}'.format(VERSION))
     parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
     parser.add_argument('-r', '--recursive', action='store_true', dest='recursive', default=False, help='Read all files under each directory, recursively.')
+    parser.add_argument('-p', '--ask', action='store_true', dest='ask', default=False, help='Ask when adding tags')
     parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=['4'], help='Extracted annotation types')
     parser.add_argument('--okular', default="~/.kde/share/apps/okular/docdata", help="Okular annotation root")
-    parser.add_argument('--zotero', default="~/Zotero", help="Zotero root")
+    parser.add_argument('--zotero', default="~/Zotero/zotero.sqlite", help="Zotero root")
 
     parser.add_argument('paths', nargs=argparse.REMAINDER)
     args = parser.parse_args()
