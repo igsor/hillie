@@ -37,24 +37,22 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 """
-# EXPORTS
+# exports
 __all__ = ('highlights', 'main')
 
-# IMPORTS
-from basics import uniquepath, VALID_TYPES, VERSION
-from shared import print_note
-import glib
+# imports
+from basics import VALID_TYPES, VERSION
+from shared import annotations_from_pdf
 import os.path
-import poppler
 import sys
-import urllib
 
-## CODE ##
+
+## code ##
 
 def highlights(files, options):
     """Print notes from highlighted text.
 
-    All is printed to standard input or standard error.
+    All is printed to output or error stream (usually stdout and stderr).
 
     Options:
     * options.recursive     Handle directories
@@ -66,6 +64,8 @@ def highlights(files, options):
     * options.with_page     Print the page number with each line
     * options.buffered      Buffer output
     * options.list_keys     Print key only
+    * options.stdout        Output stream
+    * options.stderr        Error stream
 
     """
     for path in files:
@@ -74,42 +74,7 @@ def highlights(files, options):
                 highlights([os.path.join(path, p) for p in os.listdir(path)], options)
             continue # Omit directories
 
-        url = 'file://{}'.format(urllib.pathname2url(uniquepath(path)))
-        try:
-            document = poppler.document_new_from_file(url, None)
-        except glib.GError as err:
-            msg = '{}: {}: {}\n'.format(sys.argv[0], path, err.message) 
-            sys.stderr.write(msg)
-            if not options.buffered:
-                sys.stderr.flush()
-
-            continue # Abort on failure
-
-        if options.use_title:
-            title = document.get_property('title')
-            if title is not None and title != '': # Pick embedded title
-                path = title
-            else: # Pick filename w/o extension instead
-                path = os.path.basename(path)
-                path, ext = os.path.splitext(path)
-
-        for i in range(document.get_n_pages()):
-            page = document.get_page(i)
-            annot_mappings = page.get_annot_mapping()
-            num_annots = len(annot_mappings)
-            if num_annots > 0:
-                for annot_mapping in annot_mappings:
-                    annot = annot_mapping.annot
-                    annot_type = annot.get_annot_type().value_nick
-                    annot_type = annot_type[0].upper() + annot_type[1:]
-                    if annot_type.lower() in options.valid_types:
-
-                        note = annot.get_contents()
-                        if note is None: continue
-                        note = note.strip()
-
-                        page_no = str(page.get_index() + 1)
-                        print_note(path, note, page_no, options)
+        annotations_from_pdf(path, options)
 
 def main():
     """Print highlighted areas from PDF documents.
@@ -176,10 +141,12 @@ def main():
     args.valid_types = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.valid_types], [])
    
     # Run highlighter
+    args.stdout = sys.stdout
+    args.stderr = sys.stderr
     highlights(args.paths, args)
 
 
-## MAIN ##
+## main ##
 
 if __name__ == "__main__":
     main()

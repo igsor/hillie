@@ -39,10 +39,8 @@ __all__ = ('okular_highlights', 'main')
 
 # IMPORTS
 from basics import uniquepath, VERSION
-from lxml import objectify
-from shared import print_note
+from shared import annotations_from_okular
 import os.path
-import lxml
 import sys
 
 ## CODE ##
@@ -50,7 +48,7 @@ import sys
 def okular_highlights(files, options):
     """Print notes from okular annotation files.
 
-    All is printed to standard input or standard error.
+    All is printed to output or error stream (usually stdout and stderr).
 
     Options:
     * options.recursive     Handle directories
@@ -62,6 +60,8 @@ def okular_highlights(files, options):
     * options.with_page     Print the page number with each line
     * options.buffered      Buffer output
     * options.list_keys     Print key only
+    * options.stdout        Output stream
+    * options.stderr        Error stream
 
     """
     for path in files:
@@ -70,58 +70,7 @@ def okular_highlights(files, options):
                 okular_highlights([os.path.join(path, p) for p in os.listdir(path)], options)
             continue # Omit directories
 
-        try:
-            with open(uniquepath(path)) as ifile:
-                root = objectify.fromstring(ifile.read())
-
-            if options.use_title:
-                m = re.search('^\d+\.(.*)\.xml$', path, re.I)
-                if m is not None:
-                    path = m.groups()[0]
-                    path, ext = os.path.splitext(path)
-
-            for page in root.pageList.page:
-                if not hasattr(page, 'annotationList') or \
-                   not hasattr(page.annotationList, 'annotation'):
-                    continue # Page has no annotation
-
-                for annot in page.annotationList.annotation:
-                    if annot.get('type', '-1') in options.valid_types:
-                        base = annot.find('base')
-                        if base is None: continue # Annotation has no content
-
-                        note = base.get('contents').strip()
-                        if note is None: continue # Annotation has no content
-
-                        page_no = page.get('number', -1)
-                        print_note(path, note, page_no, options)
-
-        except IOError, err:
-            msg = '{}: {}: {}\n'.format(sys.argv[0], path, err.message) 
-            sys.stderr.write(msg)
-            if not options.buffered:
-                sys.stderr.flush()
-
-            continue # Abort on failure
-
-        except lxml.etree.XMLSyntaxError, err:
-            msg = '{}: {}: {}\n'.format(sys.argv[0], path, err.message)
-            sys.stderr.write(msg)
-            if not options.buffered:
-                sys.stderr.flush()
-
-            continue # Abort on failure
-
-        except UnicodeEncodeError, err:
-            msg = '{}: {}: {}\n'.format(sys.argv[0], path, err.message)
-            sys.stderr.write(msg)
-            if not options.buffered:
-                sys.stderr.flush()
-
-            continue # Abort on failure
-
-        except AttributeError, err:
-            continue # Document has no annotations
+        annotations_from_okular(path, options)
 
 
 def main():
@@ -175,16 +124,23 @@ def main():
     parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=['4'], help='Extracted annotation types')
     parser.add_argument('--list-keys', action='store_true', dest='list_keys', default=False, help='Print a list of all keys in the document. Does not print notes.')
     parser.add_argument('--line-buffered', action='store_false', dest='buffered', default=True, help='Use line buffering on output. This can cause a performance penalty.')
+    parser.add_argument('--okular', default="~/.kde/share/apps/okular/docdata", help="Okular annotation root")
 
     parser.add_argument('paths', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.with_path is None: # with_path default depends on number of files given
         args.with_path = len(args.paths) > 1
 
+    # Path checking
+    args.okular = uniquepath(args.okular)
+    assert os.path.exists(args.okular), "Okular root directory not found"
+
     # Allow comma-seperated keys/types and ensure lower case
     args.filter_keys = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.filter_keys], [])
    
     # Run highlighter
+    args.stdout = sys.stdout
+    args.stderr = sys.stderr
     okular_highlights(args.paths, args)
 
 

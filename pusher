@@ -1,0 +1,157 @@
+#!/usr/bin/env python
+"""Add tags from Okular annotation files to Zotero.
+
+Written by Matthias Baumgartner, 2018
+
+Copyright (c) 2018, Matthias Baumgartner
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in
+   the documentation and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+"""
+# exports
+__all__ = ('pusher', 'main')
+
+# imports
+from basics import uniquepath, VERSION
+from os.path import basename, isdir
+from os.path import exists as pexists
+from os.path import join as pjoin
+from shared import annotations_from_okular
+import cStringIO
+import os
+import sqlite3
+
+
+## code ##
+
+def pusher(conn, files, options):
+    """Retrieves highlighted notes from documents (Okular temporary files)
+    and stores it in the Zotero database as tag.
+
+    Options:
+    * options.recursive     Handle directories
+    * options.valid_types   PDF annotation types to process
+    * options.filter_keys   Only print stated keys.
+
+    """
+    for path in files:
+        if isdir(path):
+            if options.recursive:
+                pusher(conn, [pjoin(path, p) for p in os.listdir(path)], options)
+            continue # Omit directories
+
+        print "\n== {} ==".format(basename(path))
+        for note in annotations_from_okular(path, options):
+            print "Adding {}".format(note)
+            conn.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (note, ))
+            conn.execute("""
+                INSERT OR IGNORE
+                INTO itemTags(itemID, tagID, type)
+                SELECT itemAttachments.parentItemID, tags.tagID, 0
+                FROM tags, itemAttachments
+                WHERE tags.name = ?
+                AND itemAttachments.path = ?
+                """,
+                (note, "storage:{}".format(path))
+            )
+
+    conn.commit()
+
+def main():
+    """Store highlighted areas from Okular annotations in Zotero as tags.
+
+    usage: pusher [--help] [--version] [-k FILTER_KEYS] [-r] [-a VALID_TYPES]
+              [--okular OKULAR] [--zotero ZOTERO]
+              ...
+
+    Store highlighted areas from Okular annotations in Zotero as tags.
+
+    positional arguments:
+      paths
+
+    optional arguments:
+      --help                show this help message and exit
+      --version             show program's version number and exit
+      -k FILTER_KEYS, --key FILTER_KEYS
+                            Show only listed keys. Use "None" for empty/no key
+      -r, --recursive       Read all files under each directory, recursively.
+      -a VALID_TYPES, --annotation-type VALID_TYPES
+                            Extracted annotation types
+      --okular OKULAR       Okular annotation root
+      --zotero ZOTERO       Zotero root
+    
+    """
+    import argparse
+
+    usage = """Store highlighted areas from Okular annotations in Zotero as tags."""
+    parser = argparse.ArgumentParser(description=usage, add_help=False)
+
+    parser.add_argument('--help', action='help', help='show this help message and exit')
+    parser.add_argument('--version', action='version', version='%(prog)s {}'.format(VERSION))
+    parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
+    parser.add_argument('-r', '--recursive', action='store_true', dest='recursive', default=False, help='Read all files under each directory, recursively.')
+    parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=['4'], help='Extracted annotation types')
+    parser.add_argument('--okular', default="~/.kde/share/apps/okular/docdata", help="Okular annotation root")
+    parser.add_argument('--zotero', default="~/Zotero", help="Zotero root")
+
+    parser.add_argument('paths', nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+
+    # Allow comma-seperated keys/types and ensure lower case
+    args.filter_keys = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.filter_keys], [])
+
+    # Path checking
+    args.okular = uniquepath(args.okular)
+    args.zotero = uniquepath(args.zotero)
+    assert pexists(args.zotero), "Zotero database not found"
+    assert pexists(args.okular), "Okular root directory not found"
+
+    # default config
+    args.list_keys  = False     # Doesn't make sense here
+    args.buffered   = True      # Prevents flush for efficiency
+    args.with_path  = False     # No prefix
+    args.remove_key = True      # Tag is content only
+    args.with_page  = False     # No prefix
+    args.use_title  = False     # No prefix
+    args.stdout    = cStringIO.StringIO()
+    args.stderr    = cStringIO.StringIO()
+
+    # open database connection
+    conn = sqlite3.connect(args.zotero)
+
+    # Run highlighter
+    pusher(conn, args.paths, args)
+
+
+## main ##
+
+if __name__ == "__main__":
+    main()
+
+## EOF ##
