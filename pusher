@@ -49,6 +49,7 @@ import sqlite3
 
 # config
 ANSWER_DEFAULT = 'y' # y, n, q, s
+VALID_TYPES = ['1', '4']
 
 
 ## code ##
@@ -130,13 +131,16 @@ def main():
     parser.add_argument('--version', action='version', version='%(prog)s {}'.format(VERSION))
     parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
     parser.add_argument('-r', '--recursive', action='store_true', dest='recursive', default=False, help='Read all files under each directory, recursively.')
-    parser.add_argument('-p', '--ask', action='store_true', dest='ask', default=False, help='Ask when adding tags')
-    parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=['4'], help='Extracted annotation types')
+    parser.add_argument('-a', '--ask', action='store_true', dest='ask', default=False, help='Ask when adding tags')
+    parser.add_argument('--annotation-type', action='append', dest='valid_types', default=[], help='Extracted annotation types')
     parser.add_argument('--okular', default="~/.kde/share/apps/okular/docdata", help="Okular annotation root")
     parser.add_argument('--zotero', default="~/Zotero/zotero.sqlite", help="Zotero root")
 
     parser.add_argument('paths', nargs=argparse.REMAINDER)
     args = parser.parse_args()
+
+    if len(args.valid_types) == 0: # Default annotation types if none given.
+        args.valid_types = VALID_TYPES
 
     # Allow comma-seperated keys/types and ensure lower case
     args.filter_keys = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.filter_keys], [])

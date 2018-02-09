@@ -34,16 +34,20 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 """
-# EXPORTS
+# exports
 __all__ = ('okular_highlights', 'main')
 
-# IMPORTS
+# imports
 from basics import uniquepath, VERSION
 from shared import annotations_from_okular
 import os.path
 import sys
 
-## CODE ##
+# config
+VALID_TYPES = ['1', '4']
+
+
+## code ##
 
 def okular_highlights(files, options):
     """Print notes from okular annotation files.
@@ -121,7 +125,7 @@ def main():
     parser.add_argument('-t', '--use-title', action='store_true', dest='use_title', default=False, help='Print document title instead of path.')
     parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
     parser.add_argument('-r', '--recursive', action='store_true', dest='recursive', default=False, help='Read all files under each directory, recursively.')
-    parser.add_argument('-a', '--annotation-type', action='append', dest='valid_types', default=['4'], help='Extracted annotation types')
+    parser.add_argument('--annotation-type', action='append', dest='valid_types', default=[], help='Extracted annotation types')
     parser.add_argument('--list-keys', action='store_true', dest='list_keys', default=False, help='Print a list of all keys in the document. Does not print notes.')
     parser.add_argument('--line-buffered', action='store_false', dest='buffered', default=True, help='Use line buffering on output. This can cause a performance penalty.')
     parser.add_argument('--okular', default="~/.kde/share/apps/okular/docdata", help="Okular annotation root")
@@ -130,6 +134,9 @@ def main():
     args = parser.parse_args()
     if args.with_path is None: # with_path default depends on number of files given
         args.with_path = len(args.paths) > 1
+
+    if len(args.valid_types) == 0: # Default annotation types if none given.
+        args.valid_types = VALID_TYPES
 
     # Path checking
     args.okular = uniquepath(args.okular)

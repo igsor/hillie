@@ -32,7 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 # EXPORTS
-__all__ = ('RX_KEY', 'VALID_TYPES', 'VERSION', 'uniquepath', 'remove_all', 'unique')
+__all__ = ('RX_KEY', 'VERSION', 'uniquepath', 'remove_all', 'unique')
 
 # IMPORTS
 import os.path
@@ -41,7 +41,6 @@ import re
 ## CONFIGURATION ##
 
 RX_KEY = re.compile('<(.*?)>\s*(.*)\s*</\\1>', re.I)
-VALID_TYPES = ['highlight', 'underline', 'squiggly', 'strike-out'] # Free-hand pop-up notes have type 'text'
 VERSION = 1.0
 
 ## CODE ##
