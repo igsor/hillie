@@ -73,9 +73,13 @@ def pusher(conn, files, options):
 
         print "\n== {} ==".format(basename(path))
         for note in annotations_from_okular(path, options):
+            # normalize text
+            note = note.lower()
+
+            # ask
             ans = options.ask and 'x' or 'y'
             while ans not in ('y', 'n', 'q', 's'):
-                ans = raw_input("Add {} [Y/n/s/q]: ".format(note))
+                ans = raw_input("Add '{}' [Y/n/s/q]: ".format(note))
                 ans = ans.strip().lower()[::1]
                 ans = ans == '' and ANSWER_DEFAULT or ans
 
