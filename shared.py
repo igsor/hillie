@@ -202,6 +202,7 @@ def print_note(path, note, page_no, options):
 
         # Write the note
         line = line.strip()
+        if options.newline: line += '\n'
         options.stdout.write(line + '\n')
         if not options.buffered:
             options.stdout.flush()

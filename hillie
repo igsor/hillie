@@ -121,6 +121,7 @@ def main():
     parser.add_argument('--version', action='version', version='%(prog)s {}'.format(VERSION))
     parser.add_argument('-h', '--no-filename', action='store_false', dest='with_path', default=None, help='Suppress the prefixing of file names on output. This is the default when there is only one file.')
     parser.add_argument('-H', '--with-filename', action='store_true', dest='with_path', default=None, help='Print the file name for each highlight. This is the default when there is more than one file.')
+    parser.add_argument('-b', '--break', action='store_true', dest='newline', default=False, help='Insert a newline after each annotation')
     parser.add_argument('-n', '--page-number', action='store_true', dest='with_page', default=False, help='Prefix each line of output with the 1-based page number within its input file.')
     parser.add_argument('-s', '--remove-key', action='store_true', dest='remove_key', default=False, help='Do not print xml-style keys.')
     parser.add_argument('-t', '--use-title', action='store_true', dest='use_title', default=False, help='Print document title instead of path.')
