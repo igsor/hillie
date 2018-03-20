@@ -32,7 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 # exports
-__all__ = ('annotations_from_okular', 'print_note')
+__all__ = ('annotations_from_pdf', 'annotations_from_okular', 'print_note')
 
 # imports
 from basics import RX_KEY, uniquepath

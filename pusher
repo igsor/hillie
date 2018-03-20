@@ -39,17 +39,21 @@ __all__ = ('pusher', 'main')
 
 # imports
 from basics import uniquepath, VERSION
-from os.path import basename, isdir
+from os.path import basename, dirname, isdir
 from os.path import exists as pexists
 from os.path import join as pjoin
 from shared import annotations_from_okular
+from shutil import copy
 import cStringIO
+import datetime
+import magic
 import os
 import sqlite3
 
 # config
 ANSWER_DEFAULT = 'y' # y, n, q, s
 VALID_TYPES = ['1', '4']
+SUPPORTED_MIME_TYPES = ('application/pdf', )
 
 
 ## code ##
@@ -68,10 +72,45 @@ def pusher(conn, files, options):
     for path in files:
         if isdir(path):
             if options.recursive:
-                pusher(conn, [pjoin(path, p) for p in os.listdir(path)], options)
+                if not pusher(conn, [pjoin(path, p) for p in os.listdir(path)], options):
+                    return False # Abort
             continue # Omit directories
 
+        if magic.from_file(path, mime=True) not in SUPPORTED_MIME_TYPES:
+            # Ignore unknown file types
+            continue
+
         print "\n== {} ==".format(basename(path))
+
+        if uniquepath(path).startswith(uniquepath(options.storage)): # inside storage
+            phandle = "storage:{}".format(basename(path))
+            khandle = basename(dirname(path))
+            itemID = conn.execute("""
+                SELECT items.itemID
+                FROM items
+                JOIN itemAttachments ON itemAttachments.parentItemID = items.itemID
+                WHERE itemAttachments.path = ?
+                --AND   items.key = ?
+                """,
+                (phandle, ) #khandle)
+                ).fetchone() # FIXME: What if filename is not unique?
+
+        else: # outside storage
+            itemID = conn.execute("""
+                SELECT items.itemID
+                FROM items
+                JOIN itemAttachments ON itemAttachments.parentItemID = items.itemID
+                WHERE itemAttachments.path = ?
+                """,
+                (uniquepath(path), )
+                ).fetchone()
+
+        if itemID is None:
+            print "Item not found in Zotero"
+            continue
+
+        itemID = itemID[0]
+
         for note in annotations_from_okular(path, options):
             # normalize text
             note = note.lower()
@@ -84,7 +123,7 @@ def pusher(conn, files, options):
                 ans = ans == '' and ANSWER_DEFAULT or ans
 
             if ans == 's': break # Continue with next file
-            elif ans == 'q': return # Abort
+            elif ans == 'q': return False # Abort
             elif ans == 'y': # Process
                 if not options.ask: print "Adding '{}'".format(note)
 
@@ -95,12 +134,15 @@ def pusher(conn, files, options):
                     SELECT itemAttachments.parentItemID, tags.tagID, 0
                     FROM tags, itemAttachments
                     WHERE tags.name = ?
-                    AND itemAttachments.path = ?
+                    AND itemAttachments.itemID = ?
                     """,
-                    (note, "storage:{}".format(path))
+                    (note, itemID)
                 )
 
+                # TODO: cleanup (remove unliked tags)
+
     conn.commit()
+    return True
 
 def main():
     """Store highlighted areas from Okular annotations in Zotero as tags.
@@ -136,11 +178,13 @@ def main():
     parser.add_argument('-k', '--key', action='append', dest='filter_keys', default=[], help='Show only listed keys. Use "None" for empty/no key')
     parser.add_argument('-r', '--recursive', action='store_true', dest='recursive', default=False, help='Read all files under each directory, recursively.')
     parser.add_argument('-a', '--ask', action='store_true', dest='ask', default=False, help='Ask when adding tags')
+    parser.add_argument('--backup', action='store_true', dest='backup', default=False, help='Backup database before editing')
     parser.add_argument('--annotation-type', action='append', dest='valid_types', default=[], help='Extracted annotation types')
     parser.add_argument('--okular', default="~/.kde/share/apps/okular/docdata", help="Okular annotation root")
-    parser.add_argument('--zotero', default="~/Zotero/zotero.sqlite", help="Zotero root")
+    parser.add_argument('--storage', default="~/.zotero/data/storage", help="Zotero pdf storage")
+    parser.add_argument('--zotero', default="~/.zotero/data/zotero.sqlite", help="Zotero root")
+    parser.add_argument('paths', nargs=argparse.REMAINDER, help="Files to get tags from. If none given, all files in the zotero storage are processed.")
 
-    parser.add_argument('paths', nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
     if len(args.valid_types) == 0: # Default annotation types if none given.
@@ -150,10 +194,18 @@ def main():
     args.filter_keys = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.filter_keys], [])
 
     # Path checking
-    args.okular = uniquepath(args.okular)
-    args.zotero = uniquepath(args.zotero)
-    assert pexists(args.zotero), "Zotero database not found"
-    assert pexists(args.okular), "Okular root directory not found"
+    args.okular  = uniquepath(args.okular)
+    args.zotero  = uniquepath(args.zotero)
+    args.storage = uniquepath(args.storage)
+    assert pexists(args.zotero),  "Zotero database not found"
+    assert pexists(args.okular),  "Okular root directory not found"
+    assert pexists(args.storage), "Zotero pdf storage not found"
+
+    if len(args.paths) == 0:
+        # Default
+        args.paths = [args.storage]
+        args.recursive = True
+        args.backup = True
 
     # default config
     args.list_keys  = False     # Doesn't make sense here
@@ -162,8 +214,20 @@ def main():
     args.remove_key = True      # Tag is content only
     args.with_page  = False     # No prefix
     args.use_title  = False     # No prefix
+    args.newline    = False     # No newlines
     args.stdout    = cStringIO.StringIO()
     args.stderr    = cStringIO.StringIO()
+
+    # create backup
+    if args.backup:
+        rid = 0
+        while True: # Find non-existing backup path
+            bpath = "{}-{}--{:04d}".format(args.zotero, datetime.datetime.now().date().isoformat(), rid)
+            if not pexists(bpath): break
+            rid += 1
+
+        copy(args.zotero, bpath) # backup
+
 
     # open database connection
     conn = sqlite3.connect(args.zotero)
