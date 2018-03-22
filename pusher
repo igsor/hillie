@@ -134,7 +134,7 @@ def pusher(conn, files, options):
                     SELECT itemAttachments.parentItemID, tags.tagID, 0
                     FROM tags, itemAttachments
                     WHERE tags.name = ?
-                    AND itemAttachments.itemID = ?
+                    AND itemAttachments.parentItemID = ?
                     """,
                     (note, itemID)
                 )
