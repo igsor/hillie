@@ -1,7 +1,6 @@
-#!/usr/bin/env python
-"""Edit annotations in PDF files.
+"""The hillie module.
 
-Go through and review or edit notes in PDF files.
+Provides means to process annotations from pdf or okular metadata files.
 
 Copyright (c) 2016, Matthias Baumgartner
 All rights reserved.
@@ -34,10 +33,5 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 """
-## main ##
-
-if __name__ == "__main__":
-    from hillie.anedit import main
-    main()
-
+# There are no default imports
 ## EOF ##
