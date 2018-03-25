@@ -52,7 +52,6 @@ import urllib
 def annotations_from_pdf(path, options):
     """Read annotations from a PDF file.
     """
-    notes = []
     try:
         url = 'file://{}'.format(urllib.pathname2url(uniquepath(path)))
         document = poppler.document_new_from_file(url, None)
@@ -80,9 +79,10 @@ def annotations_from_pdf(path, options):
                         if note is None: continue
                         note = note.strip()
 
-                        page_no = str(page.get_index() + 1)
-                        note = print_note(path, note, page_no, options)
-                        if note is not None: notes.append(note)
+                        note = filter_note(note, options)
+                        if note is not None:
+                            page_no = str(page.get_index() + 1)
+                            yield note, (page, page_no)
 
     except glib.GError as err:
         msg = '{}: {}: {}\n'.format(sys.argv[0], path, err.message)
@@ -90,7 +90,6 @@ def annotations_from_pdf(path, options):
         if not options.buffered:
             options.stderr.flush()
 
-    return notes
 
 def annotations_from_okular(path, options):
     """Read annotations from okular's temporary annotation storage.
@@ -99,7 +98,6 @@ def annotations_from_okular(path, options):
     expect from Okular.
 
     """
-    notes = []
     try:
 
         if not uniquepath(path).startswith(uniquepath(options.okular)):
@@ -129,9 +127,10 @@ def annotations_from_okular(path, options):
                     note = base.get('contents', '').strip()
                     if note == '': continue # Annotation has no content
 
-                    page_no = page.get('number', -1)
-                    note = print_note(path, note, page_no, options)
-                    if note is not None: notes.append(note)
+                    note = filter_note(note, options)
+                    if note is not None:
+                        page_no = page.get('number', -1)
+                        yield note, (page, page_no)
 
     except IOError, err: # Abort on failure
         msg = '{}: {}: {}\n'.format(sys.argv[0], path, err.message)
@@ -157,23 +156,12 @@ def annotations_from_okular(path, options):
         if not options.buffered:
             options.stderr.flush()
 
-        pass
 
-    return notes
-
-
-def print_note(path, note, page_no, options):
+def filter_note(note, options):
+    """Process *note* text following config in *options*.
+    """
     # encoding
     #note =  unicodedata.normalize('NFKD', note.decode('utf-8', 'ignore')).encode('ascii', 'ignore').strip()
-
-    if options.list_keys : # Print keys
-        m = RX_KEY.match(note)
-        key = m is not None and m.groups()[0].strip().lower() or 'none'
-        options.stdout.write(key + '\n')
-        if not options.buffered:
-            options.stdout.flush()
-
-        return None # Don't print the note
 
     if len(options.filter_keys): # Filter
         m = RX_KEY.match(note)
@@ -189,6 +177,15 @@ def print_note(path, note, page_no, options):
         if m is not None:
             note = m.groups()[1]
 
+    if note is None or note == '':
+        return None
+
+    return note
+
+
+def print_note(note, (path, page_no), options):
+    """Prints a *note* following config in *options*.
+    """
     if note is not None and note != '':
         line = '' # Init empty
 
@@ -207,6 +204,13 @@ def print_note(path, note, page_no, options):
         if not options.buffered:
             options.stdout.flush()
 
-        return line
+def list_keys(note, page, options):
+    """Print key from note.
+    """
+    m = RX_KEY.match(note)
+    key = m is not None and m.groups()[0].strip().lower() or 'none'
+    options.stdout.write(key + '\n')
+    if not options.buffered:
+        options.stdout.flush()
 
 ## EOF ##
