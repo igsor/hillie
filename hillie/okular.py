@@ -62,12 +62,12 @@ class Okular(Document):
 
         """
         try:
-            path = self.path # FIXME: Use of path/title
+            title = self.path
             if options.use_title:
-                m = re.search('^\d+\.(.*)\.xml$', path, re.I)
+                m = re.search('^\d+\.(.*)\.xml$', self.path, re.I)
                 if m is not None:
-                    path = m.groups()[0]
-                    path, ext = os.path.splitext(path)
+                    title = m.groups()[0]
+                    title, ext = os.path.splitext(title)
 
             for page in self.root.pageList.page:
                 if not hasattr(page, 'annotationList') or \
@@ -85,7 +85,7 @@ class Okular(Document):
                         note = filter_note(note, options)
                         if note is not None:
                             page_no = page.get('number', -1)
-                            yield Okular.Item(base, note, (page, page_no))
+                            yield Okular.Item(base, note, (title, page_no))
 
         except IOError, err: # Abort on failure
             msg = '{}: {}: {}\n'.format(self.pgm, self.path, err.message)

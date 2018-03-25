@@ -52,7 +52,7 @@ def okular_highlights(files, options):
         if options.list_keys:
             options.remove_key = False
             for item in document.annotations(options):
-                list_keys(item.note, item.page, options)
+                list_keys(item.note, options)
         else:
             for item in document.annotations(options):
                 print_note(item.note, item.page, options)

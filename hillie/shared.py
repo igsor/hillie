@@ -54,14 +54,14 @@ def filter_note(note, options):
 
     return note
 
-def print_note(note, (path, page_no), options):
+def print_note(note, (title, page_no), options):
     """Prints a *note* following config in *options*.
     """
     if note is not None and note != '':
         line = '' # Init empty
 
         if options.with_path: # Path
-            line += '{}:'.format(path)
+            line += '{}:'.format(title)
 
         if options.with_page: # Page No
             line += '{}:'.format(page_no)
@@ -75,7 +75,7 @@ def print_note(note, (path, page_no), options):
         if not options.buffered:
             options.stdout.flush()
 
-def list_keys(note, page, options):
+def list_keys(note, options):
     """Print key from note.
     """
     m = RX_KEY.match(note)

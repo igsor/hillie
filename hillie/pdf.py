@@ -45,14 +45,14 @@ class Pdf(Document):
         """Read annotations from a PDF file.
         """
         try:
-            path = self.path # FIXME: Use of path/title
+            title = self.path
             if options.use_title:
-                title = self.document.get_property('title')
+                embed = self.document.get_property('title')
                 if title is not None and title != '': # Pick embedded title
-                    path = title
+                    title = embed
                 else: # Pick filename w/o extension instead
-                    path = os.path.basename(path)
-                    path, ext = os.path.splitext(path)
+                    title = os.path.basename(self.path)
+                    title, ext = os.path.splitext(title)
 
             for i in range(self.document.get_n_pages()):
                 page = self.document.get_page(i)
@@ -72,7 +72,7 @@ class Pdf(Document):
                             note = filter_note(note, options)
                             if note is not None:
                                 page_no = str(page.get_index() + 1)
-                                yield Pdf.Item(annot, note, (page, page_no))
+                                yield Pdf.Item(annot, note, (title, page_no))
 
         except glib.GError as err:
             msg = '{}: {}: {}\n'.format(self.pgm, self.path, err.message)
