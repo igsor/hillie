@@ -24,8 +24,9 @@ class Okular(Document):
     """
 
     class Item(Annotation):
-        def __init__(self, client, note, page):
+        def __init__(self, client, note, key, page):
             self.note = note
+            self.key = key
             self.page = page
             self._base = client
             self._hl = client is not None and self._base.find('hl') or None
@@ -82,10 +83,10 @@ class Okular(Document):
                         note = base.get('contents', '').strip()
                         if note == '': continue # Annotation has no content
 
-                        note = filter_note(note, options)
+                        note, key = filter_note(note, options)
                         if note is not None:
                             page_no = page.get('number', -1)
-                            yield Okular.Item(base, note, (title, page_no))
+                            yield Okular.Item(base, note, key, (title, page_no))
 
         except IOError, err: # Abort on failure
             msg = '{}: {}: {}\n'.format(self.pgm, self.path, err.message)

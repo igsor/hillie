@@ -35,14 +35,16 @@ def filter_note(note, options):
     # encoding
     #note =  unicodedata.normalize('NFKD', note.decode('utf-8', 'ignore')).encode('ascii', 'ignore').strip()
 
+    key = ''
+    m = RX_KEY.match(note)
+    if m is not None:
+        key = m.groups()[0].strip().lower()
+
     if len(options.filter_keys): # Filter
-        m = RX_KEY.match(note)
-        if m is not None:
-            key = m.groups()[0].strip().lower()
-            if key not in options.filter_keys: # Abort
-                return None
+        if key not in options.filter_keys: # Abort
+            return None, None
         elif 'none' not in options.filter_keys: # Abort
-            return None
+            return None, None
 
     if options.remove_key: # Remove key
         m = RX_KEY.match(note)
@@ -50,9 +52,9 @@ def filter_note(note, options):
             note = m.groups()[1]
 
     if note is None or note == '':
-        return None
+        return None, None
 
-    return note
+    return note, key
 
 def print_note(note, (title, page_no), options):
     """Prints a *note* following config in *options*.

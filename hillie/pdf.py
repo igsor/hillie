@@ -14,6 +14,7 @@ import glib
 import os.path
 import poppler
 import urllib
+import tempfile
 
 
 ## code ##
@@ -23,8 +24,9 @@ class Pdf(Document):
     """
 
     class Item(Annotation):
-        def __init__(self, client, note, page):
+        def __init__(self, client, note, key, page):
             self.note = note
+            self.key = key
             self.page = page
             self._annot = client
         def set_content(self, note):
@@ -69,10 +71,10 @@ class Pdf(Document):
                             if note is None: continue
                             note = note.strip()
 
-                            note = filter_note(note, options)
+                            note, key = filter_note(note, options)
                             if note is not None:
                                 page_no = str(page.get_index() + 1)
-                                yield Pdf.Item(annot, note, (title, page_no))
+                                yield Pdf.Item(annot, note, key, (title, page_no))
 
         except glib.GError as err:
             msg = '{}: {}: {}\n'.format(self.pgm, self.path, err.message)
@@ -80,22 +82,26 @@ class Pdf(Document):
             if not options.buffered:
                 options.stderr.flush()
 
-    def save(self, target, options): # FIXME
-        """
+    def save(self, target, options):
+        """Save document to *target* file.
         """
         # Due to lack of documentation, I don't know how to save a file in-place
         # So now, in all case, the result is stored to a temporary file, then
         # moved to the destination, possibly overwriting the original file.
         fh, tfile = tempfile.mkstemp()
         url = 'file://{}'.format(urllib.pathname2url(uniquepath(tfile)))
-        document.save(url)
+        self.document.save(url)
 
         # FIXME: Support backup original
+        #backup_file(self.path, op=shutil.copy)
 
         # ask overwrite
-        ans = 'NEIN'
-        while ans not in ('y', 'n'):
-            ans = raw_input('Overwrite {}? [y/n] '.format(target)).strip().lower()
+        if not os.path.exists(target):
+            ans = 'y'
+        else:
+            ans = 'NEIN'
+            while ans not in ('y', 'n'):
+                ans = raw_input('Overwrite {}? [y/n] '.format(target)).strip().lower()
 
         if ans == 'y':
             os.rename(tfile, target) # Move to destination

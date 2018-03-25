@@ -6,25 +6,23 @@ Copyright (c) 2016, Matthias Baumgartner
 All rights reserved.
 
 """
-# EXPORTS
+# exports
 __all__ = ('anedit', 'anedit_multi', 'main')
 
-# IMPORTS
-import glib
+# imports
+from basics import VERSION
+from hilliep import VALID_TYPES
+from normalizer import Dictionary, annotation_fixes
+from pdf import Pdf
 import os
 import os.path
-import poppler
 import readline
 import sys
-import tempfile
-import urllib
-from basics import uniquepath, RX_KEY, VALID_TYPES, VERSION
-from normalizer import Dictionary, annotation_fixes
 
 
-## CODE ##
+## code ##
 
-def anedit_multi(options, paths):
+def anedit_multi(files, options):
     """Edit annotations of mutliple files.
 
     All is printed to standard input or standard error.
@@ -34,31 +32,20 @@ def anedit_multi(options, paths):
     * options.suffix        Write changes to a file with suffix appended to original filename
 
     """
-    for ifile in paths:
-        if not os.path.exists(ifile): continue
-
-        if os.path.isdir(ifile):
+    for path in files:
+        if os.path.isdir(path):
             if options.recursive:
-                try:
-                    contents = [os.path.join(ifile, p) for p in os.listdir(ifile)]
-                    anedit_multi(options, contents)
-                except (Exception, OSError) as err:
-                    msg = '{}: {}: {}\n'.format(sys.argv[0], ifile, err.message)
-                    sys.stderr.write(msg)
+                anedit_multi([os.path.join(path, p) for p in os.listdir(path)], options)
+            continue
 
-        else:
-            ofile = None
-            if options.suffix is not None:
-                ofile = ifile + options.suffix
+        target = path
+        if options.suffix is not None:
+            target = path + options.suffix
 
-            try:
-                anedit(options, ifile, ofile)
-            except (Exception, glib.GError) as err:
-                msg = '{}: {}: {}\n'.format(sys.argv[0], ifile, err.message)
-                sys.stderr.write(msg)
+        anedit(path, target, options)
 
 
-def anedit(options, ifile, ofile=None):
+def anedit(path, target, options):
     """Edit notes from highlights in PDF files.
 
     All is printed to standard input or standard error.
@@ -71,63 +58,30 @@ def anedit(options, ifile, ofile=None):
     * options.verbose       Print varnings
 
     """
-    if ofile is None:
-        ofile = ifile
+    # FIXME: Who guarantees this method is only executed on valid files?
+    # Also check for pusher, hillieo, hilliep, ...
 
-    if not os.path.isfile(ifile) or (os.path.exists(ofile) and not os.path.isfile(ofile)):
-        raise Exception('Not a valid file')
-
-    url = 'file://{}'.format(urllib.pathname2url(uniquepath(ifile)))
-    document = poppler.document_new_from_file(url, None) # Raises glib.GError on error
-    title = options.use_title and document.get_property('title') or os.path.basename(ifile)
-
+    # wordlist for normalization
     wordlist = Dictionary()
 
+    # open document
+    document = Pdf(path, options, pgm=sys.argv[0])
+
+    # fetch notes
     notes = []
-    for i in range(document.get_n_pages()):
-        page = document.get_page(i)
-        annot_mappings = page.get_annot_mapping()
-        num_annots = len(annot_mappings)
-        if num_annots > 0:
-            for n_annot, annot_mapping in enumerate(annot_mappings):
-                annot = annot_mapping.annot
-                annot_type = annot.get_annot_type().value_nick
-                annot_type = annot_type[0].upper() + annot_type[1:]
-                if annot_type.lower() in options.valid_types:
-
-                    note, key = annot.get_contents().strip(), None
-
-                    if len(options.filter_keys): # Key filter
-                        m = RX_KEY.match(note)
-                        if m is not None:
-                            key = m.groups()[0].strip().lower()
-                            if key not in options.filter_keys: # Abort
-                                continue
-                        elif 'none' not in options.filter_keys: # Abort
-                            continue
-
-                    if options.remove_key: # Remove key
-                        m = RX_KEY.match(note)
-                        if m is not None:
-                            # Set key from regex. Values from filter_keys are overwritten
-                            # If key is not set, there's no match in here or filter_keys and key remains None
-                            key, note = m.groups()
-
-                    if note is not None and note != '':
-                        sugg = annotation_fixes(note, wordlist, options.verbose)
-                        pgno = str(page.get_index() + 1)
-                        header = '{}: page {} ({}), {}/{}'.format(title, pgno, page.props.label, n_annot+1, num_annots)
-                        notes.append((header, annot, note.strip(), key, sugg.strip()))
+    for n_annot, item in enumerate(document.annotations(options)):
+        sugg = annotation_fixes(item.note, wordlist, options.verbose)
+        notes.append((item, sugg))
 
     # Walk through notes
     has_changes = False
     while len(notes) > 0:
-        header, annot, note, key, sugg = notes.pop(0)
+        item, sugg = notes.pop(0)
 
         print ""
-        print "\033[94m> {}, ETA {}\033[0m".format(header, len(notes))
-        print "Original: ", note
-        if note != sugg:
+        print "\033[94m> {}: page {}, ETA {}\033[0m".format(item.page[0], item.page[1], len(notes))
+        print "Original: ", item.note
+        if item.note != sugg:
             print "Suggested:", sugg
         elif options.diffs:
             continue
@@ -155,27 +109,27 @@ def anedit(options, ifile, ofile=None):
                 ans = 'NEIN'
                 print '''Usage:
 
-                n   no      Stick with the original text (the default)
-                y   yes     Accept the suggested text
-                e   edit    Edit the original text
-                c   change  Edit the suggested text
-                i   ignore  Ignore for now (again prompted later)
-                s   skip    Save and exit
-                q   quit    Abort and exit (changes are lost)
+    n   no      Stick with the original text (the default)
+    y   yes     Accept the suggested text
+    e   edit    Edit the original text
+    c   change  Edit the suggested text
+    i   ignore  Ignore for now (again prompted later)
+    s   skip    Save and exit
+    q   quit    Abort and exit (changes are lost)
 
                 '''
 
         if ans == 'y': # Use suggestion
             has_changes = True
-            if key is None:
-                annot.set_contents(sugg)
+            if item.key is None:
+                item.set_content(sugg)
             else:
-                annot.set_contents('<{}>{}</{}>'.format(key, sugg, key))
+                item.set_content('<{}>{}</{}>'.format(item.key, sugg, item.key))
         elif ans == 'n': # Use original
             pass
         elif ans in ('e', 'c'): # Edit manually
             def hook():
-                curr = ans == 'e' and note or sugg
+                curr = ans == 'e' and item.note or sugg
                 curr = curr.replace('\n', '\\n')
                 readline.insert_text(curr)
                 readline.redisplay()
@@ -183,9 +137,9 @@ def anedit(options, ifile, ofile=None):
             readline.set_pre_input_hook(hook)
             sugg = raw_input().strip().replace('\\n', '\n')
             readline.set_pre_input_hook(None)
-            notes.insert(0, (header, annot, note, key, sugg))
+            notes.insert(0, (item, sugg))
         elif ans == 'i': # Ignore note for now
-            notes.append((header, annot, note, key, sugg))
+            notes.append((item, sugg))
         elif ans == 'q': # Quit immediately, don't save
             return
         elif ans == 's': # Skip the rest
@@ -193,27 +147,7 @@ def anedit(options, ifile, ofile=None):
 
     # save changes
     if has_changes:
-        print "Saving changes"
-
-        # Due to lack of documentation, I don't know how to save a file in-place
-        # So now, in all case, the result is stored to a temporary file, then
-        # moved to the destination, possibly overwriting the original file.
-        fh, tfile = tempfile.mkstemp()
-        url2 = 'file://{}'.format(urllib.pathname2url(uniquepath(tfile)))
-        document.save(url2)
-        ans = 'NEIN'
-        while ans not in ('y', 'n'):
-            ans = raw_input('Overwrite {}? [y/n] '.format(ofile)).strip().lower()
-
-        if ans == 'y':
-            os.rename(tfile, ofile) # Move to destination
-        else:
-            ans = 'NEIN'
-            while ans not in ('y', 'n'):
-                ans = raw_input('Delete {}? [y/n] '.format(tfile)).strip().lower()
-
-            if ans == 'y':
-                os.unlink(tfile)
+        document.save(target, options)
 
 def main():
     """Edit text notes from highlighted ares in PDF documents.
@@ -268,7 +202,7 @@ def main():
     args.valid_types = reduce(list.__add__, [map(str.lower, map(str.strip, arg.split(','))) for arg in args.valid_types], [])
 
     # Run highlighter
-    anedit_multi(args, args.paths)
+    anedit_multi(args.paths, args)
 
 
 ## EOF ##
