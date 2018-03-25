@@ -14,7 +14,8 @@ __all__ = ('highlights', 'main')
 
 # imports
 from basics import VERSION
-from shared import annotations_from_pdf, list_keys, print_note
+from pdf import Pdf
+from shared import list_keys, print_note
 import os.path
 import sys
 
@@ -48,13 +49,15 @@ def highlights(files, options):
                 highlights([os.path.join(path, p) for p in os.listdir(path)], options)
             continue # Omit directories
 
+        document = Pdf(path, options, pgm=sys.argv[0])
+
         if options.list_keys:
             options.remove_key = False
-            for note, page in annotations_from_pdf(path, options):
-                list_keys(note, page, options)
+            for item in document.annotations(options):
+                list_keys(item.note, item.page, options)
         else:
-            for note, page in annotations_from_pdf(path, options):
-                print_note(note, page, options)
+            for item in document.annotations(options):
+                print_note(item.note, item.page, options)
 
 
 def main():

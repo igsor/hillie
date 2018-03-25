@@ -11,10 +11,10 @@ __all__ = ('pusher', 'main')
 
 # imports
 from basics import uniquepath, VERSION
+from okular import Okular
 from os.path import basename, dirname, isdir
 from os.path import exists as pexists
 from os.path import join as pjoin
-from shared import annotations_from_okular
 from shutil import copy
 import cStringIO
 import datetime
@@ -83,9 +83,9 @@ def pusher(conn, files, options):
 
         itemID = itemID[0]
 
-        for note, page in annotations_from_okular(path, options):
+        for item in Okular(path, options).annotations(options):
             # normalize text
-            note = note.lower()
+            note = item.note.lower()
 
             # ask
             ans = options.ask and 'x' or 'y'

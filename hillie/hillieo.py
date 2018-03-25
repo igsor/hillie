@@ -11,7 +11,8 @@ __all__ = ('okular_highlights', 'main')
 
 # imports
 from basics import uniquepath, VERSION
-from shared import annotations_from_okular, list_keys, print_note
+from okular import Okular
+from shared import list_keys, print_note
 import os.path
 import sys
 
@@ -46,13 +47,15 @@ def okular_highlights(files, options):
                 okular_highlights([os.path.join(path, p) for p in os.listdir(path)], options)
             continue # Omit directories
 
+        document = Okular(path, options, pgm=sys.argv[0])
+
         if options.list_keys:
             options.remove_key = False
-            for note, page in annotations_from_okular(path, options):
-                list_keys(note, page, options)
+            for item in document.annotations(options):
+                list_keys(item.note, item.page, options)
         else:
-            for note, page in annotations_from_okular(path, options):
-                print_note(note, page, options)
+            for item in document.annotations(options):
+                print_note(item.note, item.page, options)
 
 
 def main():
