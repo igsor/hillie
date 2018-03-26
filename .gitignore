@@ -3,3 +3,5 @@ libs/
 MANIFEST
 dist/
 hillie.pth
+docs/source/_static/hillie-current.tar.gz
+docs/build
