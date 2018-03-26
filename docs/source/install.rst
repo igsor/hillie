@@ -9,7 +9,7 @@ Download the code from :download:`here <_static/hillie-current.tar.gz>`.
 In a terminal, go to your download directory, then check and unpack the files::
 
     $ md5sum hillie-current.tar.gz
-    30e02b59fdc0f5bf23241416c931ed93  hillie-current.tar.gz
+    074b981d92a843e8529bc344fcea5ad8  hillie-current.tar.gz
     $ tar -xzf hillie-current.tar.gz
 
 Then, install the scripts into your system (using the same terminal)::
