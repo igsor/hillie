@@ -48,9 +48,9 @@ def _remove_punctuation(text):
 class Dictionary(object):
     def __init__(self, stems=None, words=None):
         if stems is None:
-            stems = os.path.join(os.path.dirname(__file__), 'stems.t')
+            stems = os.path.join(os.path.dirname(__file__), 'data', 'stems.t')
         if words is None:
-            words = os.path.join(os.path.dirname(__file__), 'words.t')
+            words = os.path.join(os.path.dirname(__file__), 'data', 'words.t')
 
         if not os.path.exists(stems) or not os.path.exists(words):
             src = os.path.join(os.path.dirname(__file__), 'data', 'collected-words')
