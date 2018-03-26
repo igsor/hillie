@@ -1,7 +1,5 @@
 *.pyc
 libs/
-hillie/data/stems.t
-hillie/data/words.t
 MANIFEST
 dist/
 
