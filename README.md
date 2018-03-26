@@ -14,7 +14,7 @@ The assumptions are, that highlights are structured:
 The highlighted text must be accessible in post-processing and different highlighters have to be distinguishable.
 Both of these assumptions are met by adding some [modifications to Okular](https://github.com/igsor/okular).
 The first assumption is met by copying the text from the pdf into the annotation.
-The second assumption is met by adding xml-style keys to the beginning and end of the text, e.g. "<key>....</key>".
+The second assumption is met by adding xml-style keys to the beginning and end of the text, e.g. "&lt;key&gt;....&lt;/key&gt;".
 The hillie scripts are supposed to be used in combination with this modified Okular.
 
 Once configured, the workflow becomes mostly transparent to these modifications.
