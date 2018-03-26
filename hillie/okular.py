@@ -52,7 +52,7 @@ class Okular(Document):
 
         # open document
         with open(uniquepath(self.path)) as ifile:
-            self.root = objectify.fromstring(ifile.read())
+            self.root = objectify.fromstring(ifile.read()) # FIXME: fix encoding errors
 
 
     def annotations(self, options):

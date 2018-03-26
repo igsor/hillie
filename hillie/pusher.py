@@ -82,8 +82,13 @@ def pusher(conn, files, options):
             continue
 
         itemID = itemID[0]
+        try:
+            document = Okular(path, options)
+        except IOError:
+            print "No annotations"
+            continue
 
-        for item in Okular(path, options).annotations(options):
+        for item in document.annotations(options):
             # normalize text
             note = item.note.lower()
 
