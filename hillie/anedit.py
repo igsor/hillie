@@ -152,28 +152,28 @@ def anedit(path, target, options):
 def main():
     """Edit text notes from highlighted ares in PDF documents.
 
-	usage: anedit [--help] [--version] [-s] [-k FILTER_KEYS] [-t] [-a VALID_TYPES]
-	              [--suffix SUFFIX] [-r] [-v]
-	              ...
+    usage: anedit [--help] [--version] [-s] [-k FILTER_KEYS] [-t] [-a VALID_TYPES]
+                  [-d] [--suffix SUFFIX] [-r] [-v]
+                  ...
 
-	Edit text notes from highlighted ares in PDF documents.
+    Edit text notes from highlighted ares in PDF documents.
 
-	positional arguments:
-	  paths                 List of files or directories to be processed
+    positional arguments:
+      paths                 List of files or directories to be processed
 
-	optional arguments:
-	  --help                show this help message and exit
-	  --version             show program's version number and exit
-	  -s, --show-key        Do print xml-style keys.
-	  -k FILTER_KEYS, --key FILTER_KEYS
-	                        Show only listed keys. Use "None" for empty/no key
-	  -t, --use-title       Print document title instead of path.
-	  -a VALID_TYPES, --annotation-type VALID_TYPES
-	                        Extracted annotation types
-	  --suffix SUFFIX       Store modifications in a file with the given suffix
-	  -r, --recursive       Read all files under each directory, recursively.
-	  -v, --verbose         Increase verbosity
-
+    optional arguments:
+      --help                show this help message and exit
+      --version             show program's version number and exit
+      -s, --show-key        Do print xml-style keys.
+      -k FILTER_KEYS, --key FILTER_KEYS
+                            Show only listed keys. Use "None" for empty/no key
+      -t, --use-title       Print document title instead of path.
+      -a VALID_TYPES, --annotation-type VALID_TYPES
+                            Extracted annotation types
+      -d, --only-diff       Only prompt lines with a distinct suggestion
+      --suffix SUFFIX       Store modifications in a file with the given suffix
+      -r, --recursive       Read all files under each directory, recursively.
+      -v, --verbose         Increase verbosity
 
     """
     import argparse

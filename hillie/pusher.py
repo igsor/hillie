@@ -119,14 +119,16 @@ def pusher(conn, files, options):
 def main():
     """Store highlighted areas from Okular annotations in Zotero as tags.
 
-    usage: pusher [--help] [--version] [-k FILTER_KEYS] [-r] [-a VALID_TYPES]
-              [--okular OKULAR] [--zotero ZOTERO]
-              ...
+    usage: pusher [--help] [--version] [-k FILTER_KEYS] [-r] [-a] [--backup]
+                  [--annotation-type VALID_TYPES] [--okular OKULAR]
+                  [--storage STORAGE] [--zotero ZOTERO]
+                  ...
 
     Store highlighted areas from Okular annotations in Zotero as tags.
 
     positional arguments:
-      paths
+      paths                 Files to get tags from. If none given, all files in
+                            the zotero storage are processed.
 
     optional arguments:
       --help                show this help message and exit
@@ -134,9 +136,12 @@ def main():
       -k FILTER_KEYS, --key FILTER_KEYS
                             Show only listed keys. Use "None" for empty/no key
       -r, --recursive       Read all files under each directory, recursively.
-      -a VALID_TYPES, --annotation-type VALID_TYPES
+      -a, --ask             Ask when adding tags
+      --backup              Backup database before editing
+      --annotation-type VALID_TYPES
                             Extracted annotation types
       --okular OKULAR       Okular annotation root
+      --storage STORAGE     Zotero pdf storage
       --zotero ZOTERO       Zotero root
 
     """

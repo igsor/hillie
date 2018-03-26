@@ -61,9 +61,10 @@ def okular_highlights(files, options):
 def main():
     """Print notes okular annotation files.
 
-    usage: hillie [--help] [--version] [-h] [-H] [-n] [-s] [-t] [-k FILTER_KEYS]
-                  [-r] [-a VALID_TYPES] [--line-buffered]
-                  ...
+    usage: hillie-o [--help] [--version] [-h] [-H] [-b] [-n] [-s] [-t]
+                    [-k FILTER_KEYS] [-r] [--annotation-type VALID_TYPES]
+                    [--list-keys] [--line-buffered] [--okular OKULAR]
+                    ...
 
     Print notes okular annotation files.
 
@@ -77,6 +78,7 @@ def main():
                             is the default when there is only one file.
       -H, --with-filename   Print the file name for each highlight. This is the
                             default when there is more than one file.
+      -b, --break           Insert a newline after each annotation
       -n, --page-number     Prefix each line of output with the 1-based page
                             number within its input file.
       -s, --remove-key      Do not print xml-style keys.
@@ -84,12 +86,13 @@ def main():
       -k FILTER_KEYS, --key FILTER_KEYS
                             Show only listed keys. Use "None" for empty/no key
       -r, --recursive       Read all files under each directory, recursively.
-      -a VALID_TYPES, --annotation-type VALID_TYPES
+      --annotation-type VALID_TYPES
                             Extracted annotation types
       --list-keys           Print a list of all keys in the document. Does not
                             print notes.
       --line-buffered       Use line buffering on output. This can cause a
                             performance penalty.
+      --okular OKULAR       Okular annotation root
 
     """
     import argparse
